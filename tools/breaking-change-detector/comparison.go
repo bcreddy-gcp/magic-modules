@@ -1,8 +1,8 @@
 package main
 
 import (
-	newProvider "google/provider/new/google"
-	oldProvider "google/provider/old/google"
+	newProvider "google/provider/new/google/provider"
+	oldProvider "google/provider/old/google/provider"
 	"strings"
 
 	"github.com/GoogleCloudPlatform/magic-modules/.ci/breaking-change-detector/rules"
