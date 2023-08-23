@@ -1,0 +1,15 @@
+resource "google_workbench_instance" "<%= ctx[:primary_resource_id] %>" {
+  name = "<%= ctx[:vars]["instance_name"] %>"
+  location = "us-west1-a"
+  gce_setup {
+    machine_type = "e2-medium"
+    metadata = {
+      proxy-mode = "service_account"
+      terraform  = "true"
+    }
+    container_image {
+      repository = "gcr.io/deeplearning-platform-release/base-cpu"
+      tag        = "latest"
+    }
+  }
+}
