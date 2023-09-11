@@ -1,4 +1,3 @@
-<% autogen_exception -%>
 package workbench_test
 
 import (
@@ -7,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
-	"github.com/hashicorp/terraform-provider-google/google/acctest"
+	"github.com/hashicorp/terraform-provider-google-beta/google-beta/acctest"
 )
 
 func TestAccWorkbenchInstance_create(t *testing.T) {
@@ -16,7 +15,7 @@ func TestAccWorkbenchInstance_create(t *testing.T) {
 	prefix := fmt.Sprintf("%d", acctest.RandInt(t))
 	name := fmt.Sprintf("tf-%s", prefix)
 
-  acctest.VcrTest(t, resource.TestCase{
+	acctest.VcrTest(t, resource.TestCase{
 		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
 		Steps: []resource.TestStep{
 			{
@@ -41,7 +40,7 @@ func TestAccWorkbenchInstance_update(t *testing.T) {
 		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccWorkbenchInstance_basic(context),
+				Config: testAccWorkbenchInstance_full(context),
 			},
 			{
 				ResourceName:            "google_workbench_instance.instance",
