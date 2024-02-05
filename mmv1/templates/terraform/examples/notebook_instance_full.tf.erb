@@ -1,11 +1,11 @@
-resource "google_kms_key_ring" "notebooks_keyring" {
-  name     = "notebooks-keyring"
-  location = "us-central1"
+resource "google_kms_crypto_key" "crypto_key" {
+  name     = "<%= ctx[:vars]['key_name'] %>"
+  key_ring = google_kms_key_ring.key_ring.id
 }
 
-resource "google_kms_crypto_key" "notebooks_key" {
-  name            = "notebooks-key"
-  key_ring        = google_kms_key_ring.notebooks_keyring.id
+resource "google_kms_key_ring" "key_ring" {
+  name     = "<%= ctx[:vars]['keyring_name'] %>"
+  location = "global"
 }
 
 resource "google_notebooks_instance" "<%= ctx[:primary_resource_id] %>" {

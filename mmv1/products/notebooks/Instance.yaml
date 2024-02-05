@@ -77,10 +77,11 @@ examples:
     region_override: 'us-west1-a'
     vars:
       instance_name: 'notebooks-instance'
+      keyring_name: 'tftest-shared-keyring-1'
+      key_name: 'tftest-shared-key-1'
     test_env_vars:
       service_account: :SERVICE_ACCT
 custom_code: !ruby/object:Provider::Terraform::CustomCode
-  constants: templates/terraform/constants/notebooks_instance.go
   update_encoder: templates/terraform/update_encoder/notebooks_instance.go
 state_upgraders: true
 schema_version: 1
