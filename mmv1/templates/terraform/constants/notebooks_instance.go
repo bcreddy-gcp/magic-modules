@@ -26,3 +26,10 @@ func NotebooksInstanceScopesDiffSuppress(_, _, _ string, d *schema.ResourceData)
 	}
 	return false
 }
+
+func NotebooksInstanceKmsDiffSuppress(_, old, new string, _ *schema.ResourceData) bool {
+	if strings.HasSuffix(old.(string), new.(string)) {
+		return true
+	}
+	return false
+}
