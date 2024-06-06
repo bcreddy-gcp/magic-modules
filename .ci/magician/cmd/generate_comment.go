@@ -50,6 +50,16 @@ type Diff struct {
 	ShortStat string
 }
 
+type BreakingChange struct {
+	Message                string
+	DocumentationReference string
+}
+
+type MissingTestInfo struct {
+	SuggestedTest string
+	Tests         []string
+}
+
 type Errors struct {
 	Title  string
 	Errors []string
@@ -58,8 +68,8 @@ type Errors struct {
 type diffCommentData struct {
 	PrNumber        int
 	Diffs           []Diff
-	BreakingChanges []string
-	MissingTests    string
+	BreakingChanges []BreakingChange
+	MissingTests    map[string]*MissingTestInfo
 	Errors          []Errors
 }
 
@@ -231,7 +241,7 @@ func execGenerateComment(prNumber int, ghTokenMagicModules, buildId, buildStep, 
 
 	// The breaking changes are unique across both provider versions
 	uniqueAffectedResources := map[string]struct{}{}
-	uniqueBreakingChanges := map[string]struct{}{}
+	uniqueBreakingChanges := map[string]BreakingChange{}
 	diffProcessorPath := filepath.Join(mmLocalPath, "tools", "diff-processor")
 	diffProcessorEnv := map[string]string{
 		"OLD_REF": oldBranch,
@@ -263,7 +273,7 @@ func execGenerateComment(prNumber int, ghTokenMagicModules, buildId, buildStep, 
 			errors[repo.Title] = append(errors[repo.Title], "The diff processor crashed while computing breaking changes. This is usually due to the downstream provider failing to compile.")
 		}
 		for _, breakingChange := range breakingChanges {
-			uniqueBreakingChanges[breakingChange] = struct{}{}
+			uniqueBreakingChanges[breakingChange.Message] = breakingChange
 		}
 
 		if repo.Name == "terraform-provider-google-beta" {
@@ -285,8 +295,10 @@ func execGenerateComment(prNumber int, ghTokenMagicModules, buildId, buildStep, 
 			uniqueAffectedResources[resource] = struct{}{}
 		}
 	}
-	breakingChangesSlice := maps.Keys(uniqueBreakingChanges)
-	sort.Strings(breakingChangesSlice)
+	breakingChangesSlice := maps.Values(uniqueBreakingChanges)
+	sort.Slice(breakingChangesSlice, func(i, j int) bool {
+		return breakingChangesSlice[i].Message < breakingChangesSlice[j].Message
+	})
 	data.BreakingChanges = breakingChangesSlice
 
 	// Compute affected resources based on changed files
@@ -412,7 +424,7 @@ func buildDiffProcessor(diffProcessorPath, providerLocalPath string, env map[str
 	return rnr.PopDir()
 }
 
-func computeBreakingChanges(diffProcessorPath string, rnr ExecRunner) ([]string, error) {
+func computeBreakingChanges(diffProcessorPath string, rnr ExecRunner) ([]BreakingChange, error) {
 	if err := rnr.PushDir(diffProcessorPath); err != nil {
 		return nil, err
 	}
@@ -425,7 +437,11 @@ func computeBreakingChanges(diffProcessorPath string, rnr ExecRunner) ([]string,
 		return nil, nil
 	}
 
-	return strings.Split(strings.TrimSuffix(output, "\n"), "\n"), rnr.PopDir()
+	var changes []BreakingChange
+	if err = json.Unmarshal([]byte(output), &changes); err != nil {
+		return nil, err
+	}
+	return changes, rnr.PopDir()
 }
 
 func changedSchemaResources(diffProcessorPath string, rnr ExecRunner) ([]string, error) {
@@ -454,17 +470,21 @@ func changedSchemaResources(diffProcessorPath string, rnr ExecRunner) ([]string,
 // Run the missing test detector and return the results.
 // Returns an empty string unless there are missing tests.
 // Error will be nil unless an error occurs during setup.
-func detectMissingTests(diffProcessorPath, tpgbLocalPath string, rnr ExecRunner) (string, error) {
+func detectMissingTests(diffProcessorPath, tpgbLocalPath string, rnr ExecRunner) (map[string]*MissingTestInfo, error) {
 	if err := rnr.PushDir(diffProcessorPath); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	output, err := rnr.Run("bin/diff-processor", []string{"detect-missing-tests", fmt.Sprintf("%s/google-beta/services", tpgbLocalPath)}, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return output, rnr.PopDir()
+	var missingTests map[string]*MissingTestInfo
+	if err = json.Unmarshal([]byte(output), &missingTests); err != nil {
+		return nil, err
+	}
+	return missingTests, rnr.PopDir()
 }
 
 func formatDiffComment(data diffCommentData) (string, error) {

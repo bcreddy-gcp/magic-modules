@@ -556,6 +556,11 @@ var ServicesListGa = mapOf(
         "displayName" to "Privateca",
         "path" to "./google/services/privateca"
     ),
+    "privilegedaccessmanager" to mapOf(
+        "name" to "privilegedaccessmanager",
+        "displayName" to "Privilegedaccessmanager",
+        "path" to "./google/services/privilegedaccessmanager"
+    ),
     "publicca" to mapOf(
         "name" to "publicca",
         "displayName" to "Publicca",
@@ -605,6 +610,11 @@ var ServicesListGa = mapOf(
         "name" to "securitycenter",
         "displayName" to "Securitycenter",
         "path" to "./google/services/securitycenter"
+    ),
+    "securitycentermanagement" to mapOf(
+        "name" to "securitycentermanagement",
+        "displayName" to "Securitycentermanagement",
+        "path" to "./google/services/securitycentermanagement"
     ),
     "securityposture" to mapOf(
         "name" to "securityposture",
