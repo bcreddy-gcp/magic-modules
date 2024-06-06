@@ -270,16 +270,16 @@ properties:
         name: bootDisk
         default_from_api: true
         description: The definition of a boot disk.
-        immutable: true
         properties:
           - !ruby/object:Api::Type::String
             name: diskSizeGb
             default_from_api: true
-            immutable: true
             description: |
               Optional. The size of the boot disk in GB attached to this instance,
               up to a maximum of 64000 GB (64 TB). If not specified, this defaults to the
               recommended value of 150GB.
+            update_verb: :POST
+            update_url: 'projects/{{project}}/locations/{{location}}/instances/{{name}}:resizeDisk'
           - !ruby/object:Api::Type::Enum
             name: diskType
             default_from_api: true
@@ -314,17 +314,17 @@ properties:
         description: Data disks attached to the VM instance. Currently supports only one data disk.
         max_size: 1
         default_from_api: true
-        immutable: true
         item_type: !ruby/object:Api::Type::NestedObject
           properties:
             - !ruby/object:Api::Type::String
               name: diskSizeGb
               default_from_api: true
-              immutable: true
               description: |
                 Optional. The size of the disk in GB attached to this VM instance,
                 up to a maximum of 64000 GB (64 TB). If not specified, this defaults to
                 100.
+              update_verb: :POST
+              update_url: 'projects/{{project}}/locations/{{location}}/instances/{{name}}:resizeDisk'
             - !ruby/object:Api::Type::Enum
               name: diskType
               custom_flatten: templates/terraform/custom_flatten/workbench_instance_data_disk_type_flatten.go.erb
