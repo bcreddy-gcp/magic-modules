@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-provider-google-beta/google-beta/acctest"
 )
 
@@ -37,6 +37,9 @@ resource "covered_resource" "resource" {
 
 func testAccCoveredResource_update() string {
 	return `
+provider "google" {
+  region = "us-central1"
+}
 resource "covered_resource" "resource" {
   field_two {
     field_three = "value-two"
