@@ -63,17 +63,18 @@ resource "google_colab_runtime_template" "my_template" {
 
 resource "google_colab_runtime" "{{$.PrimaryResourceId}}" {
   name = "{{index $.Vars "runtime_name"}}"
-  notebook_runtime_template = google_colab_runtime_template.my_template.id
   location = "us-central1" 
   
-  notebook_runtime {
-    display_name = "Runtime full"
-    runtime_user = "example@example.com"
-    description = "Full runtime"
+  notebook_runtime_template_ref {
+    notebook_runtime_template = google_colab_runtime_template.my_template.id
+  }
+  
+  display_name = "Runtime full"
+  runtime_user = "example@example.com"
+  description = "Full runtime"
 
-    labels = {
-      k = "val"
-    }
+  labels = {
+    k = "val"
   }
 
   depends_on = [

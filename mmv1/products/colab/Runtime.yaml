@@ -29,6 +29,8 @@ async:
   type: 'OpAsync'
   operation:
     full_url: 'https://{{location}}-aiplatform.googleapis.com/v1/{{op_id}}'
+custom_code:
+  encoder: 'templates/terraform/encoders/colab_runtime.go.tmpl'
 examples:
   - name: 'colab_runtime_basic'
     primary_resource_id: 'runtime'
@@ -63,28 +65,28 @@ parameters:
     url_param_only: true
     description: 'The resource name of the Runtime'
 properties:
-  - name: 'notebookRuntimeTemplate'
-    type: String
-    required: true
-    description: 'The resource name of the NotebookRuntimeTemplate based on which a NotebookRuntime will be created.'
-    diff_suppress_func: 'tpgresource.CompareSelfLinkRelativePaths'
-  - name: notebookRuntime
+  - name: notebookRuntimeTemplateRef
     type: NestedObject
     description: |
      'Runtime specific information used for NotebookRuntime creation.'
     properties:
-      - name: 'runtimeUser'
+      - name: 'notebookRuntimeTemplate'
         type: String
         required: true
-        description: 'The user email of the NotebookRuntime.'
-      - name: 'displayName'
-        type: String
-        description:
-          Required. The display name of the Runtime.
-        required: true
-      - name: description
-        type: String
-        description: 'The description of the Runtime Template.'
-      - name: 'labels'
-        type: KeyValuePairs
-        description: 'Labels to identify and group the runtime template.'
+        description: 'The resource name of the NotebookRuntimeTemplate based on which a NotebookRuntime will be created.'
+        diff_suppress_func: 'tpgresource.CompareSelfLinkRelativePaths'
+  - name: 'runtimeUser'
+    type: String
+    required: true
+    description: 'The user email of the NotebookRuntime.'
+  - name: 'displayName'
+    type: String
+    description:
+      Required. The display name of the Runtime.
+    required: true
+  - name: description
+    type: String
+    description: 'The description of the Runtime Template.'
+  - name: 'labels'
+    type: KeyValueLabels
+    description: 'Labels to identify and group the runtime template.'
