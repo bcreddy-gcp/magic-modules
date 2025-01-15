@@ -78,6 +78,8 @@ resource "google_colab_runtime" "{{$.PrimaryResourceId}}" {
   }
 
   depends_on = [
+    google_compute_network.my_network,
+    google_compute_subnetwork.my_subnetwork,
     google_project_iam_member.colab_enterprise_admin,
     google_colab_runtime_template.my_template
   ]
