@@ -86,3 +86,7 @@ properties:
   - name: description
     type: String
     description: 'The description of the Runtime Template.'
+  - name: 'labels'
+    type: KeyValueLabels
+    description: 'Labels to identify and group the runtime template.'
+    output: true
