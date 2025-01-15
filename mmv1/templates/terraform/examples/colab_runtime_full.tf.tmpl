@@ -74,7 +74,7 @@ resource "google_colab_runtime" "{{$.PrimaryResourceId}}" {
   description = "Full runtime"
 
   labels = {
-    k = "val"
+    "runtime-label" = "runtime-value"
   }
 
   depends_on = [
