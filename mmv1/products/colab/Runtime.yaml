@@ -89,4 +89,3 @@ properties:
   - name: 'labels'
     type: KeyValueLabels
     description: 'Labels to identify and group the runtime template.'
-    output: true
