@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/terraform-provider-google-beta/google-beta/tpgresource"
-	transport_tpg "github.com/hashicorp/terraform-provider-google-beta/google-beta/transport"
+	"github.com/hashicorp/terraform-provider-google/google/tpgresource"
+	transport_tpg "github.com/hashicorp/terraform-provider-google/google/transport"
 )
 
 type ColabOperationWaiter struct {
@@ -21,8 +21,11 @@ func (w *ColabOperationWaiter) QueryOp() (interface{}, error) {
 	if w == nil {
 		return nil, fmt.Errorf("Cannot query operation, it's unset or nil.")
 	}
+
+	region := tpgresource.GetRegionFromRegionalSelfLink(w.CommonOperationWaiter.Op.Name)
+
 	// Returns the proper get.
-	url := fmt.Sprintf("%s%s", w.Config.ColabBasePath, w.CommonOperationWaiter.Op.Name)
+	url := fmt.Sprintf("https://%s-aiplatform.googleapis.com/v1/%s", region, w.CommonOperationWaiter.Op.Name)
 
 	return transport_tpg.SendRequest(transport_tpg.SendRequestOptions{
 		Config:    w.Config,
