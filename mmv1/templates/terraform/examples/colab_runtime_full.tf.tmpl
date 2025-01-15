@@ -73,10 +73,6 @@ resource "google_colab_runtime" "{{$.PrimaryResourceId}}" {
   runtime_user = "example@example.com"
   description = "Full runtime"
 
-  labels = {
-    "runtime-label" = "runtime-value"
-  }
-
   depends_on = [
     google_compute_network.my_network,
     google_compute_subnetwork.my_subnetwork,
@@ -84,4 +80,3 @@ resource "google_colab_runtime" "{{$.PrimaryResourceId}}" {
     google_colab_runtime_template.my_template
   ]
 }
-
