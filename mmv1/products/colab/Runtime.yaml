@@ -37,9 +37,6 @@ examples:
     region_override: 'us-central1'
     vars:
       runtime_name: 'colab-runtime'
-    test_env_vars:
-      project_id: 'PROJECT_NAME'
-      service_account: 'SERVICE_ACCT'
   - name: 'colab_runtime_full'
     primary_resource_id: 'runtime'
     primary_resource_name: 'fmt.Sprintf("tf-test-colab-runtime%s", context["random_suffix"])'
@@ -48,9 +45,6 @@ examples:
       runtime_name: 'colab-runtime'
       network_name: 'colab-test-default'
       key_name: 'my-crypto-key'
-    test_env_vars:
-      project_id: 'PROJECT_NAME'
-      service_account: 'SERVICE_ACCT'
     test_vars_overrides:
       key_name: 'acctest.BootstrapKMSKeyInLocation(t, "us-central1").CryptoKey.Name'
 parameters:
@@ -85,4 +79,4 @@ properties:
     required: true
   - name: description
     type: String
-    description: 'The description of the Runtime Template.'
+    description: 'The description of the Runtime.'

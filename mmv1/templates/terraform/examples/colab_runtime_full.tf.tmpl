@@ -10,12 +10,6 @@ resource "google_compute_subnetwork" "my_subnetwork" {
   ip_cidr_range = "10.0.1.0/24"
 }
 
-resource "google_project_iam_member" "colab_enterprise_admin" {
-  project = "{{index $.TestEnvVars "project_id"}}"
-  role    = "roles/aiplatform.colabEnterpriseAdmin"
-  member  = "user:example@example.com"
-}
-
 resource "google_colab_runtime_template" "my_template" {
   name        = "{{index $.Vars "runtime_name"}}"
   display_name = "Runtime template full"
@@ -70,13 +64,12 @@ resource "google_colab_runtime" "{{$.PrimaryResourceId}}" {
   }
   
   display_name = "Runtime full"
-  runtime_user = "example@example.com"
+  runtime_user = "gterraformtestuser@gmail.com"
   description = "Full runtime"
 
   depends_on = [
     google_compute_network.my_network,
     google_compute_subnetwork.my_subnetwork,
-    google_project_iam_member.colab_enterprise_admin,
     google_colab_runtime_template.my_template
   ]
 }

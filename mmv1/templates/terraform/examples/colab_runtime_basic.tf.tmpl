@@ -1,9 +1,3 @@
-resource "google_project_iam_member" "colab_enterprise_admin" {
-  project = "{{index $.TestEnvVars "project_id"}}"
-  role    = "roles/aiplatform.colabEnterpriseAdmin"
-  member  = "user:example@example.com"
-}
-
 resource "google_colab_runtime_template" "my_template" {
   name = "{{index $.Vars "runtime_name"}}"
   display_name = "Runtime template basic"
@@ -27,10 +21,9 @@ resource "google_colab_runtime" "{{$.PrimaryResourceId}}" {
   }
   
   display_name = "Runtime basic"
-  runtime_user = "example@example.com"
+  runtime_user = "gterraformtestuser@gmail.com"
 
   depends_on = [
-    google_project_iam_member.colab_enterprise_admin,
     google_colab_runtime_template.my_template,
   ]
 }
