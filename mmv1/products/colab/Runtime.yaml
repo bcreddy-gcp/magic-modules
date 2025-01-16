@@ -16,7 +16,6 @@
 name: 'Runtime'
 description: |
   'A runtime is a Google-provisioned virtual machine (VM) that can run the code in your notebook (IPYNB file).'
-
 references:
   guides:
     'Create a runtime': 'https://cloud.google.com/colab/docs/create-runtime'
@@ -43,7 +42,6 @@ examples:
     region_override: 'us-central1'
     vars:
       runtime_name: 'colab-runtime'
-      network_name: 'colab-test-default'
       key_name: 'my-crypto-key'
     test_vars_overrides:
       key_name: 'acctest.BootstrapKMSKeyInLocation(t, "us-central1").CryptoKey.Name'
