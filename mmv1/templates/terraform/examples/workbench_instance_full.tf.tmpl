@@ -83,7 +83,6 @@ resource "google_workbench_instance" "{{$.PrimaryResourceId}}" {
       disk_type = "PD_SSD"
       disk_encryption = "CMEK"
       kms_key = "{{index $.Vars "key_name"}}"
-      resource_policies = [google_compute_resource_policy.my_policy.id]
     }
 
     data_disks {

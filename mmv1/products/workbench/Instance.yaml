@@ -349,13 +349,6 @@ properties:
               Learn more about using your own encryption keys.'
             immutable: true
             diff_suppress_func: 'WorkbenchInstanceKmsDiffSuppress'
-          - name: 'resourcePolicies'
-            type: Array
-            description: |
-              Optional. Resource policies applied to this disk.
-            immutable: true
-            item_type:
-              type: String
       - name: 'dataDisks'
         type: Array
         description: |
