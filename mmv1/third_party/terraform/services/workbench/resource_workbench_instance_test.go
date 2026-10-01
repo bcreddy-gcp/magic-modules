@@ -23,17 +23,19 @@ func TestAccWorkbenchInstance_update(t *testing.T) {
 		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccWorkbenchInstance_basic(context),
+				Config: testAccWorkbenchInstance_basicN2(context),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(
 						"google_workbench_instance.instance", "state", "ACTIVE"),
+					resource.TestCheckResourceAttrSet(
+						"google_workbench_instance.instance", "gce_setup.0.compute_instance_id"),
 				),
 			},
 			{
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_update(context),
@@ -46,7 +48,7 @@ func TestAccWorkbenchInstance_update(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -56,7 +58,33 @@ func testAccWorkbenchInstance_basic(context map[string]interface{}) string {
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
+
+  gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
+  }
+}
+`, context)
+}
+
+func testAccWorkbenchInstance_basicN2(context map[string]interface{}) string {
+	return acctest.Nprintf(`
+resource "google_workbench_instance" "instance" {
+  name = "tf-test-workbench-instance%{random_suffix}"
+  location = "us-east1-b"
+
+  gce_setup {
+    machine_type = "n2-standard-2"
+    boot_disk {
+      disk_type = "PD_BALANCED"
+    }
+    data_disks {
+      disk_type = "PD_BALANCED"
+    }
+  }
 }
 `, context)
 }
@@ -65,13 +93,13 @@ func testAccWorkbenchInstance_update(context map[string]interface{}) string {
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
 
   gce_setup {
-    machine_type = "n1-standard-16"
+    machine_type = "g2-standard-4"
 
     accelerator_configs{
-      type         = "NVIDIA_TESLA_T4"
+      type         = "NVIDIA_L4"
       core_count   = 1
     }
 
@@ -83,10 +111,12 @@ resource "google_workbench_instance" "instance" {
 
 	boot_disk {
 		disk_size_gb  = 310
+		disk_type     = "PD_BALANCED"
 	  }
   
 	  data_disks {
 		disk_size_gb  = 330
+		disk_type     = "PD_BALANCED"
 	  }
 
     metadata = {
@@ -126,7 +156,7 @@ func TestAccWorkbenchInstance_updateGpu(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_updateGpu(context),
@@ -139,7 +169,7 @@ func TestAccWorkbenchInstance_updateGpu(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -149,12 +179,18 @@ func testAccWorkbenchInstance_basicGpu(context map[string]interface{}) string {
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {
-    machine_type = "n1-standard-1" // cant be e2 because of accelerator
+    machine_type = "g2-standard-4"
     accelerator_configs {
-      type         = "NVIDIA_TESLA_T4"
+      type         = "NVIDIA_L4"
       core_count   = 1
+    }
+    boot_disk {
+      disk_type = "PD_BALANCED"
+    }
+    data_disks {
+      disk_type = "PD_BALANCED"
     }
 
   }
@@ -166,14 +202,21 @@ func testAccWorkbenchInstance_updateGpu(context map[string]interface{}) string {
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
 
   gce_setup {
-    machine_type = "n1-standard-16"
+    machine_type = "g2-standard-24"
 
     accelerator_configs{
-      type         = "NVIDIA_TESLA_P4"
-      core_count   = 1
+      type         = "NVIDIA_L4"
+      core_count   = 2
+    }
+
+    boot_disk {
+      disk_type = "PD_BALANCED"
+    }
+    data_disks {
+      disk_type = "PD_BALANCED"
     }
 
     shielded_instance_config {
@@ -214,7 +257,7 @@ func TestAccWorkbenchInstance_removeGpu(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_removeGpu(context),
@@ -227,7 +270,7 @@ func TestAccWorkbenchInstance_removeGpu(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -237,12 +280,18 @@ func testAccWorkbenchInstance_Gpu(context map[string]interface{}) string {
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {
-    machine_type = "n1-standard-1" // cant be e2 because of accelerator
+    machine_type = "g2-standard-4"
     accelerator_configs {
-      type         = "NVIDIA_TESLA_T4"
+      type         = "NVIDIA_L4"
       core_count   = 1
+    }
+    boot_disk {
+      disk_type = "PD_BALANCED"
+    }
+    data_disks {
+      disk_type = "PD_BALANCED"
     }
 
   }
@@ -254,13 +303,75 @@ func testAccWorkbenchInstance_removeGpu(context map[string]interface{}) string {
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
 
   gce_setup {
-    machine_type = "n1-standard-16"
+    machine_type = "n2-standard-4"
+    boot_disk {
+      disk_type = "PD_BALANCED"
+    }
+    data_disks {
+      disk_type = "PD_BALANCED"
+    }
 
   }
 
+}
+`, context)
+}
+
+func TestAccWorkbenchInstance_updateMinCpuPlatform(t *testing.T) {
+	t.Parallel()
+
+	context := map[string]interface{}{
+		"random_suffix": acctest.RandString(t, 10),
+	}
+
+	acctest.VcrTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkbenchInstance_minCpuPlatform(context, "Intel Cascade Lake"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"google_workbench_instance.instance", "gce_setup.0.min_cpu_platform", "Intel Cascade Lake"),
+				),
+			},
+			{
+				ResourceName:            "google_workbench_instance.instance",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
+			},
+			{
+				Config: testAccWorkbenchInstance_minCpuPlatform(context, "Intel Ice Lake"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"google_workbench_instance.instance", "gce_setup.0.min_cpu_platform", "Intel Ice Lake"),
+				),
+			},
+			{
+				ResourceName:            "google_workbench_instance.instance",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
+			},
+		},
+	})
+}
+
+func testAccWorkbenchInstance_minCpuPlatform(context map[string]interface{}, minCpuPlatform string) string {
+	context["min_cpu_platform"] = minCpuPlatform
+	return acctest.Nprintf(`
+resource "google_workbench_instance" "instance" {
+  name = "tf-test-workbench-instance%{random_suffix}"
+  location = "us-east1-b"
+
+  gce_setup {
+    machine_type = "n2-standard-4"
+    min_cpu_platform = "%{min_cpu_platform}"
+  }
 }
 `, context)
 }
@@ -287,7 +398,7 @@ func TestAccWorkbenchInstance_updateMetadata(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_updateMetadata(context),
@@ -300,7 +411,7 @@ func TestAccWorkbenchInstance_updateMetadata(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_basic(context),
@@ -313,7 +424,7 @@ func TestAccWorkbenchInstance_updateMetadata(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -331,7 +442,7 @@ func TestAccWorkbenchInstance_updateMetadataKey(t *testing.T) {
 		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
 		Steps: []resource.TestStep{
 			{
-				Config: testAccWorkbenchInstance_updateMetadata(context),
+				Config: testAccWorkbenchInstance_updateMetadataN2(context),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(
 						"google_workbench_instance.instance", "state", "ACTIVE"),
@@ -341,7 +452,7 @@ func TestAccWorkbenchInstance_updateMetadataKey(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_updateMetadataKey(context),
@@ -354,7 +465,7 @@ func TestAccWorkbenchInstance_updateMetadataKey(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_update(context),
@@ -367,10 +478,10 @@ func TestAccWorkbenchInstance_updateMetadataKey(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
-				Config: testAccWorkbenchInstance_updateMetadata(context),
+				Config: testAccWorkbenchInstance_updateMetadataN2(context),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(
 						"google_workbench_instance.instance", "state", "ACTIVE"),
@@ -380,7 +491,7 @@ func TestAccWorkbenchInstance_updateMetadataKey(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -390,9 +501,42 @@ func testAccWorkbenchInstance_updateMetadata(context map[string]interface{}) str
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
 
   gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
+    metadata = {
+      terraform = "true"
+      "resource-url" = "new-fake-value",
+      "serial-port-logging-enable" = "true",
+    }
+  }
+
+  labels = {
+    k = "val"
+  }
+
+}
+`, context)
+}
+
+func testAccWorkbenchInstance_updateMetadataN2(context map[string]interface{}) string {
+	return acctest.Nprintf(`
+resource "google_workbench_instance" "instance" {
+  name = "tf-test-workbench-instance%{random_suffix}"
+  location = "us-east1-b"
+
+  gce_setup {
+    machine_type = "n2-standard-2"
+    boot_disk {
+      disk_type = "PD_BALANCED"
+    }
+    data_disks {
+      disk_type = "PD_BALANCED"
+    }
     metadata = {
       terraform = "true"
       "resource-url" = "new-fake-value",
@@ -412,9 +556,16 @@ func testAccWorkbenchInstance_updateMetadataKey(context map[string]interface{}) 
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
 
   gce_setup {
+    machine_type = "n2-standard-2"
+    boot_disk {
+      disk_type = "PD_BALANCED"
+    }
+    data_disks {
+      disk_type = "PD_BALANCED"
+    }
     metadata = {
       terraform = "true",
       "idle-timeout-seconds" = "10800",
@@ -453,7 +604,7 @@ func TestAccWorkbenchInstance_updateState(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_updateState(context),
@@ -466,7 +617,7 @@ func TestAccWorkbenchInstance_updateState(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_basic(context),
@@ -479,7 +630,7 @@ func TestAccWorkbenchInstance_updateState(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -489,7 +640,14 @@ func testAccWorkbenchInstance_updateState(context map[string]interface{}) string
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
+
+  gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
+  }
 
   desired_state = "STOPPED"
 
@@ -519,7 +677,7 @@ func TestAccWorkbenchInstance_empty_accelerator(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_empty_accelerator(context),
@@ -532,7 +690,7 @@ func TestAccWorkbenchInstance_empty_accelerator(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_empty_accelerator(context),
@@ -545,7 +703,7 @@ func TestAccWorkbenchInstance_empty_accelerator(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -555,9 +713,13 @@ func testAccWorkbenchInstance_empty_accelerator(context map[string]interface{}) 
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
 
   gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
     accelerator_configs{
     }
   }
@@ -587,7 +749,7 @@ func TestAccWorkbenchInstance_updateBootDisk(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_updateBootDisk(context),
@@ -600,7 +762,7 @@ func TestAccWorkbenchInstance_updateBootDisk(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -628,7 +790,7 @@ func TestAccWorkbenchInstance_updateDataDisk(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.metadata"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type", "gce_setup.0.metadata"},
 			},
 			{
 				Config: testAccWorkbenchInstance_updateDataDisk(context),
@@ -641,7 +803,7 @@ func TestAccWorkbenchInstance_updateDataDisk(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.metadata"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type", "gce_setup.0.metadata"},
 			},
 		},
 	})
@@ -669,7 +831,7 @@ func TestAccWorkbenchInstance_updateBothDisks(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.metadata"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type", "gce_setup.0.metadata"},
 			},
 			{
 				Config: testAccWorkbenchInstance_updateBothDisks(context),
@@ -682,7 +844,7 @@ func TestAccWorkbenchInstance_updateBothDisks(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.metadata"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type", "gce_setup.0.metadata"},
 			},
 		},
 	})
@@ -692,10 +854,12 @@ func testAccWorkbenchInstance_updateBootDisk(context map[string]interface{}) str
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {
+    machine_type = "n4-standard-2"
 	boot_disk {
 		disk_size_gb  = 310
+		disk_type     = "HYPERDISK_BALANCED"
 	  }
 	}
 }
@@ -706,8 +870,12 @@ func testAccWorkbenchInstance_updateDataDisk(context map[string]interface{}) str
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {  
+    machine_type = "n4-standard-2"
+	boot_disk {
+		disk_type = "HYPERDISK_BALANCED"
+	}
 	  data_disks {
 		disk_size_gb  = 330
 	  }
@@ -720,10 +888,12 @@ func testAccWorkbenchInstance_updateBothDisks(context map[string]interface{}) st
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {
+    machine_type = "n4-standard-2"
 	boot_disk {
 		disk_size_gb  = 310
+		disk_type     = "HYPERDISK_BALANCED"
 	  }
 
 	  data_disks {
@@ -762,7 +932,7 @@ func TestAccWorkbenchInstance_updatelabels(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_basic(context),
@@ -775,7 +945,7 @@ func TestAccWorkbenchInstance_updatelabels(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_label(context),
@@ -788,7 +958,7 @@ func TestAccWorkbenchInstance_updatelabels(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -801,7 +971,15 @@ resource "random_uuid" "test" {
 
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
+
+  gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
+  }
+
   labels = {
     k = "val"
 	computed_label = "${random_uuid.test.result}"
@@ -832,7 +1010,7 @@ func TestAccWorkbenchInstance_updateCustomContainers(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_updatedcustomcontainer(context),
@@ -845,7 +1023,7 @@ func TestAccWorkbenchInstance_updateCustomContainers(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -855,8 +1033,12 @@ func testAccWorkbenchInstance_customcontainer(context map[string]interface{}) st
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
     container_image {
       repository = "us-docker.pkg.dev/deeplearning-platform-release/gcr.io/base-cu113.py310"
       tag = "latest"
@@ -870,8 +1052,12 @@ func testAccWorkbenchInstance_updatedcustomcontainer(context map[string]interfac
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
     container_image {
       repository = "gcr.io/deeplearning-platform-release/workbench-container"
       tag = "20241117-2200-rc0"
@@ -914,11 +1100,14 @@ func testAccWorkbenchInstance_metadataEUC(context map[string]interface{}, script
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name     = "tf-test-workbench-%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   instance_owners = ["workbenche2etestota@gmail.com"]
 
   gce_setup {
-    machine_type = "n1-standard-1"
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
     vm_image {
       project = "cloud-notebooks-managed"
       family  = "workbench-instances"
@@ -957,7 +1146,7 @@ func TestAccWorkbenchInstance_updateJupyterLab(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_jupyterlabFalse(context),
@@ -970,7 +1159,7 @@ func TestAccWorkbenchInstance_updateJupyterLab(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 			{
 				Config: testAccWorkbenchInstance_jupyterlabTrue(context),
@@ -983,7 +1172,7 @@ func TestAccWorkbenchInstance_updateJupyterLab(t *testing.T) {
 				ResourceName:            "google_workbench_instance.instance",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state"},
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
 			},
 		},
 	})
@@ -993,8 +1182,12 @@ func testAccWorkbenchInstance_jupyterlabTrue(context map[string]interface{}) str
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
     metadata = {
       "enable-jupyterlab4" = "true"
     }
@@ -1007,10 +1200,174 @@ func testAccWorkbenchInstance_jupyterlabFalse(context map[string]interface{}) st
 	return acctest.Nprintf(`
 resource "google_workbench_instance" "instance" {
   name = "tf-test-workbench-instance%{random_suffix}"
-  location = "us-central1-a"
+  location = "us-east1-b"
   gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
     metadata = {
       "enable-jupyterlab4" = "false"
+    }
+  }
+}
+`, context)
+}
+
+func TestAccWorkbenchInstance_updateDeleteProtection(t *testing.T) {
+	t.Parallel()
+
+	context := map[string]interface{}{
+		"random_suffix": acctest.RandString(t, 10),
+	}
+
+	acctest.VcrTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkbenchInstance_deleteProtection(context, "true"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"google_workbench_instance.instance", "enable_deletion_protection", "true"),
+				),
+			},
+			{
+				ResourceName:            "google_workbench_instance.instance",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
+			},
+			{
+				Config: testAccWorkbenchInstance_deleteProtection(context, "false"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"google_workbench_instance.instance", "enable_deletion_protection", "false"),
+				),
+			},
+			{
+				ResourceName:            "google_workbench_instance.instance",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type"},
+			},
+		},
+	})
+}
+
+func testAccWorkbenchInstance_deleteProtection(context map[string]interface{}, protection string) string {
+	context["protection"] = protection
+	return acctest.Nprintf(`
+resource "google_workbench_instance" "instance" {
+  name = "tf-test-workbench-instance%{random_suffix}"
+  location = "us-east1-b"
+  enable_deletion_protection = %{protection}
+
+  gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
+  }
+}
+`, context)
+}
+
+func TestAccWorkbenchInstance_updateResourcePolicies(t *testing.T) {
+	t.Parallel()
+
+	context := map[string]interface{}{
+		"random_suffix": acctest.RandString(t, 10),
+	}
+
+	acctest.VcrTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
+		CheckDestroy:             testAccCheckWorkbenchInstanceDestroyProducer(t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWorkbenchInstance_resourcePolicies(context, "google_compute_resource_policy.policy_a.id"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"google_workbench_instance.instance", "state", "ACTIVE"),
+					resource.TestCheckResourceAttr(
+						"google_workbench_instance.instance", "gce_setup.0.data_disks.0.resource_policies.#", "1"),
+				),
+			},
+			{
+				ResourceName:            "google_workbench_instance.instance",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type", "gce_setup.0.metadata"},
+			},
+			{
+				// resource_policies is mutable, so changing it must update the
+				// instance in place rather than forcing a recreation.
+				Config: testAccWorkbenchInstance_resourcePolicies(context, "google_compute_resource_policy.policy_b.id"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("google_workbench_instance.instance", plancheck.ResourceActionUpdate),
+					},
+				},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(
+						"google_workbench_instance.instance", "state", "ACTIVE"),
+					resource.TestCheckResourceAttr(
+						"google_workbench_instance.instance", "gce_setup.0.data_disks.0.resource_policies.#", "1"),
+				),
+			},
+			{
+				ResourceName:            "google_workbench_instance.instance",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"name", "instance_owners", "location", "instance_id", "request_id", "labels", "terraform_labels", "desired_state", "update_time", "health_info", "health_state", "gce_setup.0.boot_disk.0.disk_type", "gce_setup.0.data_disks.0.disk_type", "gce_setup.0.metadata"},
+			},
+		},
+	})
+}
+
+func testAccWorkbenchInstance_resourcePolicies(context map[string]interface{}, policyRef string) string {
+	context["policy_ref"] = policyRef
+	return acctest.Nprintf(`
+resource "google_compute_resource_policy" "policy_a" {
+  name   = "tf-test-wbi-policy-a-%{random_suffix}"
+  region = "us-east1"
+  snapshot_schedule_policy {
+    schedule {
+      daily_schedule {
+        days_in_cycle = 1
+        start_time    = "04:00"
+      }
+    }
+  }
+}
+
+resource "google_compute_resource_policy" "policy_b" {
+  name   = "tf-test-wbi-policy-b-%{random_suffix}"
+  region = "us-east1"
+  snapshot_schedule_policy {
+    schedule {
+      daily_schedule {
+        days_in_cycle = 1
+        start_time    = "05:00"
+      }
+    }
+  }
+}
+
+resource "google_workbench_instance" "instance" {
+  name     = "tf-test-workbench-instance%{random_suffix}"
+  location = "us-east1-b"
+
+  gce_setup {
+    machine_type = "n4-standard-2"
+    boot_disk {
+      disk_type = "HYPERDISK_BALANCED"
+    }
+    data_disks {
+      disk_size_gb      = 330
+      disk_type         = "HYPERDISK_BALANCED"
+      resource_policies = [%{policy_ref}]
     }
   }
 }

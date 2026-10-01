@@ -13,6 +13,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/fs"
 	"log"
@@ -32,6 +33,19 @@ import (
 
 const RELATIVE_MAGICIAN_LOCATION = "mmv1/"
 const GITHUB_BASE_URL = "https://github.com/GoogleCloudPlatform/magic-modules/tree/main/" + RELATIVE_MAGICIAN_LOCATION
+
+// Regular expressions shared by Resource helpers. Compiled once at init rather
+// than per call, as these helpers are invoked from templates for every resource.
+var (
+	// {{name}} markers in id/url formats.
+	fieldMarkerRegexp = regexp.MustCompile(`\{\{(\w+)\}\}`)
+	// {{name}} or {{%name}} markers in IAM url/import formats.
+	iamFieldMarkerRegexp = regexp.MustCompile(`\{\{%?(\w+)\}\}`)
+	// {{ name }} markers, tolerating surrounding whitespace.
+	looseFieldMarkerRegexp = regexp.MustCompile(`{{\s*([^}]+)\s*}}`)
+	// "key": entries in an extra_schema_entry file.
+	schemaEntryKeyRegexp = regexp.MustCompile(`"([^"]+)"\s*:`)
+)
 
 type Resource struct {
 	Name string
@@ -251,6 +265,16 @@ type Resource struct {
 	Datasource *resource.Datasource `yaml:"datasource_experimental,omitempty"`
 
 	GenerateListResource bool `yaml:"generate_list_resource,omitempty"`
+
+	// [Optional] A static filter string appended as a ?filter= query parameter when
+	// listing this resource. Useful when the list endpoint returns multiple resource
+	// types that share the same API URL (e.g. engines filtered by solutionType).
+	ListFilter string `yaml:"list_filter,omitempty"`
+
+	// [Optional] If true, the list API response is a bare JSON array instead of
+	// a wrapped object with a named key. Use ListArrayPages instead of ListPages
+	// when generating the list function.
+	ListResponseIsArray bool `yaml:"list_response_is_array,omitempty"`
 
 	// If true, skip sweeper generation for this resource
 	ExcludeSweeper bool `yaml:"exclude_sweeper,omitempty"`
@@ -666,13 +690,14 @@ func (r Resource) ServiceVersion() string {
 
 func extractVersionFromBaseUrl(baseUrl string) string {
 	parts := strings.Split(baseUrl, "/")
-	// starts with v...
-	if parts[0] != "" && parts[0][0] == 'v' {
-		return parts[0]
-	}
-	// starts with /v...
-	if parts[0] == "" && parts[1][0] == 'v' {
-		return parts[1]
+	// Do not check more than 3 parts
+	// This supports just enough for a prefix before the version
+	maxParts := min(3, len(parts))
+	for i := 0; i < maxParts-1; i++ {
+		part := parts[i]
+		if versionRegexp.MatchString(part) {
+			return part
+		}
 	}
 	return ""
 }
@@ -701,6 +726,22 @@ func (r Resource) AllNestedProperties(props []*Type) []*Type {
 	return nested
 }
 
+// appendSynthesizedProviderDefaultFields appends synthesized Type entries for "project", "zone", and "region"
+// when they appear in the given scope (a list of identifier names) but are not already present in props.
+func (r Resource) appendSynthesizedProviderDefaultFields(props []*Type, scope []string) []*Type {
+	found := map[string]bool{}
+	for _, p := range props {
+		found[google.Underscore(p.Name)] = true
+	}
+	hasField := map[string]bool{"project": r.HasProject(), "zone": r.HasZone(), "region": r.HasRegion()}
+	for _, field := range []string{"project", "zone", "region"} {
+		if slices.Contains(scope, field) && !found[field] && hasField[field] {
+			props = append(props, &Type{Name: field, Type: "string"})
+		}
+	}
+	return props
+}
+
 func (r Resource) IdentityProperties() []*Type {
 	props := make([]*Type, 0)
 	identities := r.Identity
@@ -708,20 +749,25 @@ func (r Resource) IdentityProperties() []*Type {
 		identities = nil
 	}
 	importFormat := r.ExtractIdentifiers(ImportIdFormats(r.ImportFormat, identities, r.BaseUrl)[0])
-	optionalValues := map[string]bool{"project": false, "zone": false, "region": false}
+	// Collapse any nested objects marked with flatten_object so that identifiers
+	// nested under them (e.g. datasetReference.datasetId -> dataset_id) are
+	// matched against the import format.
+	allProps := make([]*Type, 0)
 	for _, p := range r.AllProperties() {
-		if slices.Contains(importFormat, google.Underscore(p.Name)) {
-			props = append(props, p)
-			optionalValues[p.Name] = true
+		if p.FlattenObject {
+			allProps = google.Concat(allProps, p.RootProperties())
+		} else {
+			allProps = append(allProps, p)
 		}
 	}
 
-	hasField := map[string]bool{"project": r.HasProject(), "zone": r.HasZone(), "region": r.HasRegion()}
-	for _, field := range []string{"project", "zone", "region"} { // prevents duplicates
-		if slices.Contains(importFormat, field) && !optionalValues[field] && hasField[field] {
-			props = append(props, &Type{Name: field, Type: "string"})
+	for _, p := range allProps {
+		if slices.Contains(importFormat, google.Underscore(p.Name)) {
+			props = append(props, p)
 		}
 	}
+
+	props = r.appendSynthesizedProviderDefaultFields(props, importFormat)
 
 	if len(r.CustomCode.CustomIdentity) > 0 {
 		for _, fieldName := range r.CustomCode.CustomIdentity {
@@ -734,9 +780,10 @@ func (r Resource) IdentityProperties() []*Type {
 
 func (r Resource) ListScopeProperties() []*Type {
 	scope := r.ExtractIdentifiers(r.CollectionUrl())
-	return google.Select(r.IdentityProperties(), func(p *Type) bool {
+	props := google.Select(r.AllUserProperties(), func(p *Type) bool {
 		return slices.Contains(scope, google.Underscore(p.Name))
 	})
+	return r.appendSynthesizedProviderDefaultFields(props, scope)
 }
 
 func (r Resource) ListResultDisplayNameKeyStrings() []string {
@@ -747,7 +794,7 @@ func (r Resource) ListResultDisplayNameKeyStrings() []string {
 	if slices.ContainsFunc(r.RootProperties(), func(p *Type) bool { return p.Name == "name" }) {
 		keys = append(keys, "name")
 	}
-	markers := regexp.MustCompile(`\{\{(\w+)\}\}`).FindAllStringSubmatch(r.IdFormat, -1)
+	markers := fieldMarkerRegexp.FindAllStringSubmatch(r.IdFormat, -1)
 	if len(markers) > 0 {
 		tail := markers[len(markers)-1][1]
 		if !slices.Contains(keys, tail) {
@@ -767,7 +814,7 @@ func (r Resource) SensitiveProps() []*Type {
 func (r Resource) WriteOnlyProps() []*Type {
 	props := r.AllNestedProperties(r.RootProperties())
 	return google.Select(props, func(p *Type) bool {
-		return p.WriteOnlyLegacy || p.WriteOnly
+		return p.WriteOnly
 	})
 }
 
@@ -1313,7 +1360,7 @@ func (r Resource) PackageName() string {
 // general defined timeouts, or default Timeouts
 func (r Resource) GetTimeouts() *Timeouts {
 	timeoutsFiltered := r.Timeouts
-	if timeoutsFiltered == nil {
+	if timeoutsFiltered == nil || timeoutsFiltered.IsZero() {
 		if async := r.GetAsync(); async != nil && async.Operation != nil {
 			timeoutsFiltered = async.Operation.Timeouts
 		}
@@ -1363,7 +1410,7 @@ func (r Resource) Updatable() bool {
 	if !r.Immutable {
 		return true
 	}
-	for _, p := range r.AllPropertiesInVersion() {
+	for _, p := range r.AllNestedProperties(r.RootProperties()) {
 		if p.UpdateUrl != "" {
 			return true
 		}
@@ -1387,6 +1434,21 @@ func (r Resource) TerraformName() string {
 		return r.LegacyName
 	}
 	return fmt.Sprintf("google_%s_%s", r.ProductMetadata.TerraformName(), google.Underscore(r.Name))
+}
+
+func (r Resource) AutogenVersion() int {
+	if r.AutogenStatus == "" {
+		return 0
+	}
+	decodedBytes, err := base64.StdEncoding.DecodeString(r.AutogenStatus)
+	if err != nil {
+		return 1
+	}
+	decoded := string(decodedBytes)
+	if strings.HasSuffix(decoded, "AutogenV2Agent") {
+		return 2
+	}
+	return 1
 }
 
 func (r Resource) ImportIdFormatsFromResource() []string {
@@ -1429,7 +1491,7 @@ func ImportIdFormats(importFormat, identity []string, baseUrl string) []string {
 	}
 
 	// short id: {{project}}/{{zone}}/{{name}}
-	fieldMarkers := regexp.MustCompile(`{{[[:word:]]+}}`).FindAllString(idFormats[0], -1)
+	fieldMarkers := fieldMarkerRegexp.FindAllString(idFormats[0], -1)
 	shortIdFormat := strings.Join(fieldMarkers, "/")
 
 	// short ids without fields with provider-level defaults:
@@ -1623,7 +1685,7 @@ func (r Resource) IamResourceUri() string {
 
 // For example: "projects/%s/schemas/%s"
 func (r Resource) IamResourceUriFormat() string {
-	return regexp.MustCompile(`\{\{%?(\w+)\}\}`).ReplaceAllString(r.IamResourceUri(), "%s")
+	return iamFieldMarkerRegexp.ReplaceAllString(r.IamResourceUri(), "%s")
 }
 
 // For example: the uri "projects/{{project}}/schemas/{{name}}"
@@ -1651,7 +1713,7 @@ func (r Resource) IamResourceUriStringQualifiers() string {
 // For example, for the url "projects/{{project}}/schemas/{{schema}}",
 // the identifiers are "project", "schema".
 func (r Resource) ExtractIdentifiers(url string) []string {
-	matches := regexp.MustCompile(`\{\{%?(\w+)\}\}`).FindAllStringSubmatch(url, -1)
+	matches := iamFieldMarkerRegexp.FindAllStringSubmatch(url, -1)
 	var result []string
 	for _, match := range matches {
 		result = append(result, match[1])
@@ -1789,6 +1851,25 @@ func (r Resource) FirstTestConfig() TestConfig {
 	return TestConfig{}
 }
 
+// FirstRunnableTestConfig is FirstTestConfig plus skip_test. List-query tests
+// use this so they do not apply a skipped sample as setup.
+func (r Resource) FirstRunnableTestConfig() TestConfig {
+	for _, sample := range r.Samples {
+		if sample.ExcludeTest || sample.SkipTest != "" || (r.ProductMetadata.VersionObjOrClosest(r.TargetVersionName).CompareTo(r.ProductMetadata.VersionObjOrClosest(sample.MinVersion)) < 0) {
+			continue
+		}
+		for _, step := range sample.Steps {
+			if r.ProductMetadata.VersionObjOrClosest(r.TargetVersionName).CompareTo(r.ProductMetadata.VersionObjOrClosest(sample.MinVersion)) >= 0 {
+				return TestConfig{
+					Sample: sample,
+					Step:   step,
+				}
+			}
+		}
+	}
+	return TestConfig{}
+}
+
 func (r Resource) SamplePrimaryResourceId() string {
 	samples := google.Reject(r.Samples, func(s *resource.Sample) bool {
 		return s.ExcludeTest
@@ -1801,6 +1882,9 @@ func (r Resource) SamplePrimaryResourceId() string {
 		samples = google.Reject(r.Samples, func(s *resource.Sample) bool {
 			return (r.ProductMetadata.VersionObjOrClosest(r.TargetVersionName).CompareTo(r.ProductMetadata.VersionObjOrClosest(s.MinVersion)) < 0)
 		})
+	}
+	if len(samples) == 0 {
+		return ""
 	}
 	return samples[0].PrimaryResourceId
 }
@@ -1833,7 +1917,7 @@ func (r Resource) IamImportFormatTemplate() string {
 func (r Resource) IamImportFormat() string {
 	importFormat := r.IamImportFormatTemplate()
 
-	importFormat = regexp.MustCompile(`\{\{%?(\w+)\}\}`).ReplaceAllString(importFormat, "%s")
+	importFormat = iamFieldMarkerRegexp.ReplaceAllString(importFormat, "%s")
 	return strings.ReplaceAll(importFormat, r.ProductMetadata.Version.BaseUrl, "")
 }
 
@@ -2099,23 +2183,23 @@ func (r Resource) TestSampleSetUp(sysfs fs.FS) {
 	}
 }
 
-// TestServiceDependencies returns a map of service names to import aliases that are required
+// TestDependencies returns a map of service names to import aliases that are required
 // by this resource's samples.
-func (r Resource) TestServiceDependencies() map[string]string {
+func (r Resource) TestDependencies() map[string]string {
 	deps := map[string]string{}
 	for _, s := range r.TestSamples() {
-		for service, alias := range s.TestServiceDependencies(r.Runtime.ResourcePrefixServiceMap) {
-			if depsAlias, ok := deps[service]; ok && alias != depsAlias {
+		for pkg, alias := range s.TestDependencies(r.Runtime.ResourcePrefixPkgMap) {
+			if depsAlias, ok := deps[pkg]; ok && alias != depsAlias {
 				if (alias == "_" && depsAlias == "") || (alias == "" && depsAlias == "_") {
-					deps[service] = ""
+					deps[pkg] = ""
 					continue
 				}
-				log.Fatalf("Conflicting aliases (%s vs %s) for service dependency %s for resource %s", depsAlias, alias, service, r.ApiName)
+				log.Fatalf("Conflicting aliases (%s vs %s) for pkg dependency %s for resource %s", depsAlias, alias, pkg, r.ApiName)
 			}
-			deps[service] = alias
+			deps[pkg] = alias
 		}
 	}
-	delete(deps, strings.ToLower(r.ProductMetadata.Name))
+	delete(deps, "services/"+strings.ToLower(r.ProductMetadata.Name))
 	return deps
 }
 
@@ -2387,7 +2471,7 @@ func (r Resource) CaiIamAssetNameTemplate(productBackendName string) string {
 
 func urlContainsOnlyAllowedKeys(templateURL string, allowedKeys []string) bool {
 	// Create regex to match anything between {{ and }}
-	re := regexp.MustCompile(`{{\s*([^}]+)\s*}}`)
+	re := looseFieldMarkerRegexp
 
 	// Find all matches in the template URL
 	matches := re.FindAllStringSubmatch(templateURL, -1)
@@ -2539,7 +2623,7 @@ func (r Resource) TGCTestIgnorePropertiesToStrings() []string {
 	for _, tp := range r.AllNestedProperties(r.RootProperties()) {
 		if tp.UrlParamOnly {
 			props = append(props, google.Underscore(tp.Name))
-		} else if tp.IsMissingInCai || tp.IgnoreRead || tp.ClientSide || tp.WriteOnlyLegacy {
+		} else if tp.IsMissingInCai || tp.IgnoreRead || tp.ClientSide {
 			props = append(props, strings.Join(tp.Lineage(), "."))
 		}
 	}
@@ -2568,7 +2652,7 @@ func (r Resource) TGCTestIgnorePropertiesToStrings() []string {
 		if err != nil {
 			log.Printf("Warning: failed to read extra_schema_entry file %s: %v", r.CustomCode.ExtraSchemaEntry, err)
 		} else {
-			re := regexp.MustCompile(`"([^"]+)"\s*:`)
+			re := schemaEntryKeyRegexp
 			matches := re.FindAllStringSubmatch(string(b), -1)
 			for _, match := range matches {
 				if len(match) > 1 {

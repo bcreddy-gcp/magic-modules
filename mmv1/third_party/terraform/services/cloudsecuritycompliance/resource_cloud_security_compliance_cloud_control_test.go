@@ -14,7 +14,7 @@ import (
 func testAccCloudSecurityComplianceCloudControl_basic(context map[string]interface{}) string {
 	return acctest.Nprintf(`
 resource "google_cloud_security_compliance_cloud_control" "example" {
-	organization      = "%{org_id}"
+	parent            = "organizations/%{org_id}"
 	location          = "global"
 	cloud_control_id  = "tf-test-%{random_suffix}"
 	display_name      = "TF Test CloudControl"
@@ -371,6 +371,93 @@ resource "google_cloud_security_compliance_cloud_control" "example" {
 			}
 		}
 	}
+	parameter_spec {
+		name         = "nested-oneof-parameter"
+		display_name = "Nested Oneof Parameter"
+		description  = "A parameter testing nested oneof_value and subParameters"
+		value_type   = "ONEOF"
+		is_required  = true
+		
+		default_value {
+			oneof_value {
+				name = "test-nested-oneof"
+				parameter_value {
+					oneof_value {
+						name = "inner-oneof"
+						parameter_value {
+							string_value = "nested-val"
+						}
+					}
+				}
+			}
+		}
+		
+		validation {
+			allowed_values {
+				values {
+					oneof_value {
+						name = "test-nested-oneof"
+						parameter_value {
+							oneof_value {
+								name = "inner-oneof"
+								parameter_value {
+									string_value = "nested-val"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		sub_parameters {
+			name         = "sub-nested-oneof"
+			display_name = "Sub Nested Oneof"
+			description  = "A sub-parameter for nested oneof"
+			value_type   = "ONEOF"
+			is_required  = true
+			default_value {
+				oneof_value {
+					name = "sub-test-nested-oneof"
+					parameter_value {
+						oneof_value {
+							name = "sub-inner-oneof"
+							parameter_value {
+								string_value = "sub-nested-val"
+							}
+						}
+					}
+				}
+			}
+			validation {
+				allowed_values {
+					values {
+						oneof_value {
+							name = "sub-test-nested-oneof"
+							parameter_value {
+								oneof_value {
+									name = "sub-inner-oneof"
+									parameter_value {
+										string_value = "sub-nested-val"
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			sub_parameters {
+				name         = "nested-sub-param"
+				display_name = "Nested Sub Parameter"
+				description  = "Testing sub_parameters within sub_parameters"
+				value_type   = "STRING"
+				is_required  = true
+				default_value {
+					string_value = "nested-sub-val"
+				}
+			}
+		}
+	}
 }
 `, context)
 }
@@ -394,7 +481,7 @@ func TestAccCloudSecurityComplianceCloudControl_update(t *testing.T) {
 				ResourceName:            "google_cloud_security_compliance_cloud_control.example",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"cloud_control_id", "location", "organization"},
+				ImportStateVerifyIgnore: []string{"cloud_control_id", "location", "parent", "organization"},
 			},
 			{
 				Config: testAccCloudSecurityComplianceCloudControl_update(context),
@@ -408,7 +495,7 @@ func TestAccCloudSecurityComplianceCloudControl_update(t *testing.T) {
 				ResourceName:            "google_cloud_security_compliance_cloud_control.example",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"cloud_control_id", "location", "organization"},
+				ImportStateVerifyIgnore: []string{"cloud_control_id", "location", "parent", "organization"},
 			},
 		},
 	})
@@ -417,7 +504,7 @@ func TestAccCloudSecurityComplianceCloudControl_update(t *testing.T) {
 func testAccCloudSecurityComplianceCloudControl_update(context map[string]interface{}) string {
 	return acctest.Nprintf(`
 resource "google_cloud_security_compliance_cloud_control" "example" {
-  organization      = "%{org_id}"
+  parent            = "organizations/%{org_id}"
   location          = "global"
   cloud_control_id  = "tf-test-%{random_suffix}"
 
@@ -741,6 +828,178 @@ resource "google_cloud_security_compliance_cloud_control" "example" {
       }
     }
   }
+
+  parameter_spec {
+    name         = "nested-oneof-parameter"
+    display_name = "Updated Nested Oneof Parameter"
+    description  = "An updated parameter testing nested oneof_value and subParameters"
+    value_type   = "ONEOF"
+    is_required  = true
+
+    default_value {
+      oneof_value {
+        name = "updated-test-nested-oneof"
+        parameter_value {
+          oneof_value {
+            name = "updated-inner-oneof"
+            parameter_value {
+              string_value = "updated-nested-val"
+            }
+          }
+        }
+      }
+    }
+
+    validation {
+      allowed_values {
+        values {
+          oneof_value {
+            name = "updated-test-nested-oneof"
+            parameter_value {
+              oneof_value {
+                name = "updated-inner-oneof"
+                parameter_value {
+                  string_value = "updated-nested-val"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    sub_parameters {
+      name         = "sub-nested-oneof"
+      display_name = "Updated Sub Nested Oneof"
+      description  = "An updated sub-parameter for nested oneof"
+      value_type   = "ONEOF"
+      is_required  = true
+      default_value {
+        oneof_value {
+          name = "updated-sub-test-nested-oneof"
+          parameter_value {
+            oneof_value {
+              name = "updated-sub-inner-oneof"
+              parameter_value {
+                string_value = "updated-sub-nested-val"
+              }
+            }
+          }
+        }
+      }
+      validation {
+        allowed_values {
+          values {
+            oneof_value {
+              name = "updated-sub-test-nested-oneof"
+              parameter_value {
+                oneof_value {
+                  name = "updated-sub-inner-oneof"
+                  parameter_value {
+                    string_value = "updated-sub-nested-val"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      sub_parameters {
+        name         = "nested-sub-param"
+        display_name = "Updated Nested Sub Parameter"
+        description  = "Updated testing sub_parameters within sub_parameters"
+        value_type   = "STRING"
+        is_required  = true
+        default_value {
+          string_value = "updated-nested-sub-val"
+        }
+      }
+    }
+  }
+}
+`, context)
+}
+
+func TestAccCloudSecurityComplianceCloudControl_backwardCompatibility(t *testing.T) {
+	t.Parallel()
+
+	context := map[string]interface{}{
+		"org_id":        envvar.GetTestOrgFromEnv(t),
+		"random_suffix": acctest.RandString(t, 10),
+	}
+
+	acctest.VcrTest(t, resource.TestCase{
+		PreCheck:                 func() { acctest.AccTestPreCheck(t) },
+		ProtoV5ProviderFactories: acctest.ProtoV5ProviderFactories(t),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccCloudSecurityComplianceCloudControl_backwardCompatibility(context),
+			},
+			{
+				ResourceName:            "google_cloud_security_compliance_cloud_control.example",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"cloud_control_id", "location", "parent", "organization"},
+			},
+		},
+	})
+}
+
+func testAccCloudSecurityComplianceCloudControl_backwardCompatibility(context map[string]interface{}) string {
+	return acctest.Nprintf(`
+resource "google_cloud_security_compliance_cloud_control" "example" {
+	organization      = "%{org_id}"
+	location          = "global"
+	cloud_control_id  = "tf-test-%{random_suffix}"
+	display_name      = "TF Test CloudControl Org Compat"
+	description       = "A test cloud control for security compliance using organization for backward compatibility"
+	categories        = ["CC_CATEGORY_INFRASTRUCTURE"]
+	severity          = "HIGH"
+	finding_category  = "SECURITY_POLICY"
+	remediation_steps = "Review and update the security configuration according to best practices."
+	
+	supported_cloud_providers        = ["GCP"]
+	
+	rules {
+		description         = "Ensure compute instances have secure boot enabled"
+		rule_action_types   = ["RULE_ACTION_TYPE_DETECTIVE"]
+		
+		cel_expression {
+			expression = "resource.data.shieldedInstanceConfig.enableSecureBoot == true"
+			resource_types_values {
+				values = ["compute.googleapis.com/Instance"]
+			}
+		}
+	}
+	
+	parameter_spec {
+		name         = "location"
+		display_name = "Resource Location"
+		description  = "The location where the resource should be deployed"
+		value_type   = "STRING"
+		is_required  = true
+		
+		default_value {
+			string_value = "us-central1"
+		}
+		
+		validation {
+			regexp_pattern {
+				pattern = "^[a-z]+-[a-z]+[0-9]$"
+			}
+		}
+
+		sub_parameters {
+			name         = "sub-location"
+			display_name = "Sub Location"
+			description  = "A sub-parameter for location"
+			value_type   = "STRING"
+			is_required  = true
+			default_value {
+				string_value = "us-central1-a"
+			}
+		}
+	}
 }
 `, context)
 }

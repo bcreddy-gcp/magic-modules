@@ -10,6 +10,7 @@ import (
 	tpgcompute "github.com/hashicorp/terraform-provider-google/google/services/compute"
 	"github.com/hashicorp/terraform-provider-google/google/services/kms"
 	_ "github.com/hashicorp/terraform-provider-google/google/services/lustre"
+	_ "github.com/hashicorp/terraform-provider-google/google/services/resourcemanager"
 )
 
 func TestAccLustreInstance_withMaintenancePolicy(t *testing.T) {
@@ -50,7 +51,7 @@ func testAccLustreInstance_withMaintenancePolicy(context map[string]interface{})
 	return acctest.Nprintf(`
 resource "google_lustre_instance" "instance" {
   instance_id                 = "tf-test-my-instance%{random_suffix}"
-  location                    = "us-central1-a"
+  location                    = "us-central1-c"
   filesystem                  = "testfs"
   network                     = data.google_compute_network.lustre-network.id
   gke_support_enabled         = false
@@ -414,7 +415,7 @@ resource "google_lustre_instance" "instance" {
 }
 
 resource "google_compute_resource_policy" "lustre_policy" {
-  name   = "gce-policy"
+  name   = "tf-test-gce-policy-%{random_suffix}"
   region = "us-central1"
   snapshot_schedule_policy {
     schedule {

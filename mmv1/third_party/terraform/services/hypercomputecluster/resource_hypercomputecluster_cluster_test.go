@@ -11,6 +11,7 @@ import (
 	_ "github.com/hashicorp/terraform-provider-google/google/services/filestore"
 	_ "github.com/hashicorp/terraform-provider-google/google/services/hypercomputecluster"
 	_ "github.com/hashicorp/terraform-provider-google/google/services/lustre"
+	_ "github.com/hashicorp/terraform-provider-google/google/services/resourcemanager"
 	_ "github.com/hashicorp/terraform-provider-google/google/services/servicenetworking"
 	_ "github.com/hashicorp/terraform-provider-google/google/services/storage"
 )
@@ -19,7 +20,8 @@ func TestAccHypercomputeclusterCluster_update(t *testing.T) {
 	t.Parallel()
 
 	context := map[string]interface{}{
-		"random_suffix": acctest.RandString(t, 8),
+		"random_suffix":  acctest.RandString(t, 8),
+		"cluster_suffix": acctest.RandString(t, 5),
 	}
 
 	acctest.VcrTest(t, resource.TestCase{
@@ -62,7 +64,8 @@ func TestAccHypercomputeclusterCluster_existing(t *testing.T) {
 	t.Parallel()
 
 	context := map[string]interface{}{
-		"random_suffix": acctest.RandString(t, 8),
+		"random_suffix":  acctest.RandString(t, 8),
+		"cluster_suffix": acctest.RandString(t, 5),
 	}
 
 	acctest.VcrTest(t, resource.TestCase{
@@ -86,7 +89,8 @@ func TestAccHypercomputeclusterCluster_new(t *testing.T) {
 	t.Parallel()
 
 	context := map[string]interface{}{
-		"random_suffix": acctest.RandString(t, 8),
+		"random_suffix":  acctest.RandString(t, 8),
+		"cluster_suffix": acctest.RandString(t, 5),
 	}
 
 	acctest.VcrTest(t, resource.TestCase{
@@ -116,7 +120,7 @@ locals {
 }
 
 resource "google_hypercomputecluster_cluster" "cluster" {
-  cluster_id                  = "tf%{random_suffix}"
+  cluster_id                  = "tfgen%{cluster_suffix}"
   location                    = "us-central1"
   description                 = "Cluster Director instance created through Terraform"
   labels = {
@@ -126,7 +130,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
     id = "network-default"
     config {
       new_network {
-        network = "projects/${local.project_id}/global/networks/net-%{random_suffix}"
+        network = "projects/${local.project_id}/global/networks/tf-test-%{random_suffix}"
       }
     }
   }
@@ -145,7 +149,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
     config {
       new_bucket {
         storage_class = "STANDARD"
-        bucket = "bucket-old-%{random_suffix}"
+        bucket = "tf-test-bucket-old-%{random_suffix}"
       }
     }
   }
@@ -213,7 +217,7 @@ locals {
 }
 
 resource "google_hypercomputecluster_cluster" "cluster" {
-  cluster_id                  = "tf%{random_suffix}"
+  cluster_id                  = "tfgen%{cluster_suffix}"
   location                    = "us-central1"
   description                 = "Cluster Director instance created through Terraform (updated)"
   labels = {
@@ -223,7 +227,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
     id = "network-default"
     config {
       new_network {
-        network = "projects/${local.project_id}/global/networks/net-%{random_suffix}"
+        network = "projects/${local.project_id}/global/networks/tf-test-%{random_suffix}"
       }
     }
   }
@@ -242,7 +246,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
     config {
       new_bucket {
         storage_class = "STANDARD"
-        bucket = "bucket-new-%{random_suffix}"
+        bucket = "tf-test-bucket-new-%{random_suffix}"
       }
     }
   }
@@ -306,13 +310,13 @@ locals {
 }
 
 resource "google_compute_network" "vpc" {
-  name                    = "existing-net-%{random_suffix}"
+  name                    = "tf-test-existing-net-%{random_suffix}"
   auto_create_subnetworks = false
   routing_mode            = "REGIONAL"
 }
 
 resource "google_compute_subnetwork" "subnet" {
-  name          = "existing-subnet-%{random_suffix}"
+  name          = "tf-test-existing-subnet-%{random_suffix}"
   ip_cidr_range = "10.0.1.0/24"
   region        = "us-central1"
   network       = google_compute_network.vpc.id
@@ -320,7 +324,7 @@ resource "google_compute_subnetwork" "subnet" {
 }
 
 resource "google_compute_firewall" "allow_internal_subnet_communication" {
-  name    = "allow-internal-%{random_suffix}"
+  name    = "tf-test-allow-internal-%{random_suffix}"
   network = google_compute_network.vpc.id
   direction = "INGRESS"
   allow {
@@ -331,14 +335,14 @@ resource "google_compute_firewall" "allow_internal_subnet_communication" {
 }
 
 resource "google_storage_bucket" "bucket" {
-  name     = "bucket-%{random_suffix}"
+  name     = "tf-test-bucket-%{random_suffix}"
   location = "US"
   project  = "cloud-hypercomp-dev"
   uniform_bucket_level_access = true
 }
 
 resource "google_filestore_instance" "filestore_instance" {
-  name     = "filestore-%{random_suffix}"
+  name     = "tf-test-filestore-%{random_suffix}"
   location = "us-central1-b"
   tier     = "BASIC_HDD"
   file_shares {
@@ -346,14 +350,14 @@ resource "google_filestore_instance" "filestore_instance" {
     name        = "share"
   }
   networks {
-    network = "existing-net-%{random_suffix}"
+    network = "tf-test-existing-net-%{random_suffix}"
     modes   = ["MODE_IPV4"]
   }
   depends_on = [google_compute_network.vpc] 
 }
 
 resource "google_compute_global_address" "private_ip_alloc" {
-  name          = "lustre-ip-alloc-%{random_suffix}"
+  name          = "tf-test-lustre-ip-alloc-%{random_suffix}"
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 24
@@ -367,7 +371,7 @@ resource "google_service_networking_connection" "servicenetworking_conn" {
 }
 
 resource "google_lustre_instance" "lustre_instance" {
-  instance_id                 = "lustre-%{random_suffix}"
+  instance_id                 = "tf-test-lustre-%{random_suffix}"
   location                    = "us-central1-b"
   filesystem                  = "tffs"
   capacity_gib                = 18000
@@ -380,7 +384,7 @@ resource "google_lustre_instance" "lustre_instance" {
 }
 
 resource "google_hypercomputecluster_cluster" "cluster" {
-  cluster_id                  = "tf%{random_suffix}"
+  cluster_id                  = "tfgen%{cluster_suffix}"
   location                    = "us-central1"
   description                 = "Cluster Director instance created through Terraform"
   network_resources {
@@ -476,7 +480,7 @@ locals {
 }
 
 resource "google_compute_reservation" "gce_reservation" {
-  name = "gce-reservation-%{random_suffix}"
+  name = "tf-test-gce-reservation-%{random_suffix}"
   zone = "us-central1-a"
   specific_reservation {
     count = 1
@@ -488,7 +492,7 @@ resource "google_compute_reservation" "gce_reservation" {
 }
 
 resource "google_hypercomputecluster_cluster" "cluster" {
-  cluster_id                  = "tf%{random_suffix}"
+  cluster_id                  = "tfgen%{cluster_suffix}"
   location                    = "us-central1"
   description                 = "Cluster Director instance created through Terraform"
   network_resources {
@@ -496,7 +500,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
     config {
       new_network {
         description = "Network one"
-        network = "projects/${local.project_id}/global/networks/net-%{random_suffix}"
+        network = "projects/${local.project_id}/global/networks/tf-test-%{random_suffix}"
       }
     }
   }
@@ -505,7 +509,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
     config {
       new_bucket {
         storage_class = "STANDARD"
-        bucket = "bucket-new-1-%{random_suffix}"
+        bucket = "tf-test-bucket-new-1-%{random_suffix}"
         hierarchical_namespace {
           enabled = false
         }
@@ -516,7 +520,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
     id = "bucket-new-2"
     config {
       new_bucket {
-        bucket = "bucket-new-2-%{random_suffix}"
+        bucket = "tf-test-bucket-new-2-%{random_suffix}"
         autoclass {
           enabled = true
           terminal_storage_class = "NEARLINE"
@@ -532,7 +536,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
     config {
       new_filestore {
         description = "Filestore instance created via Terraform"
-        filestore = "projects/${local.project_id}/locations/us-central1-a/instances/filestore-%{random_suffix}"
+        filestore = "projects/${local.project_id}/locations/us-central1-a/instances/tf-test-filestore-%{random_suffix}"
         protocol = "NFSV3"
         tier = "ZONAL"
         file_shares {
@@ -549,7 +553,7 @@ resource "google_hypercomputecluster_cluster" "cluster" {
         capacity_gb = "18000"
         description = "Lustre instance created via Terraform"
         filesystem = "lustrefs"
-        lustre = "projects/${local.project_id}/locations/us-central1-a/instances/lustre-%{random_suffix}"
+        lustre = "projects/${local.project_id}/locations/us-central1-a/instances/tf-test-lustre-%{random_suffix}"
           per_unit_storage_throughput = "1000"
       }
     }
@@ -630,7 +634,8 @@ func TestAccHypercomputeclusterCluster_inPlaceUpdates(t *testing.T) {
 	t.Parallel()
 
 	context := map[string]interface{}{
-		"random_suffix": acctest.RandString(t, 4),
+		"random_suffix":  acctest.RandString(t, 4),
+		"cluster_suffix": acctest.RandString(t, 5),
 	}
 
 	acctest.VcrTest(t, resource.TestCase{
@@ -683,14 +688,14 @@ locals {
 }
 
 resource "google_hypercomputecluster_cluster" "cluster" {
-  cluster_id                  = "tf%{random_suffix}"
+  cluster_id                  = "tfgen%{cluster_suffix}"
   location                    = "us-central1"
   description                 = "In-place update test base"
   network_resources {
     id = "network-default"
     config {
       new_network {
-        network = "projects/${local.project_id}/global/networks/net-ipu-%{random_suffix}"
+        network = "projects/${local.project_id}/global/networks/tf-test-ipu-%{random_suffix}"
       }
     }
   }
@@ -747,14 +752,14 @@ locals {
 }
 
 resource "google_hypercomputecluster_cluster" "cluster" {
-  cluster_id                  = "tf%{random_suffix}"
+  cluster_id                  = "tfgen%{cluster_suffix}"
   location                    = "us-central1"
   description                 = "In-place update test updated" # Updated description
   network_resources {
     id = "network-default"
     config {
       new_network {
-        network = "projects/${local.project_id}/global/networks/net-ipu-%{random_suffix}"
+        network = "projects/${local.project_id}/global/networks/tf-test-ipu-%{random_suffix}"
       }
     }
   }

@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"magician/cloudstorage"
 	"magician/exec"
 	"magician/github"
 	"magician/provider"
@@ -82,6 +83,12 @@ type VCRTestTableRow struct {
 	RecordingLogUrl                 string
 	ReplayingAfterRecordingErrorUrl string
 	ReplayingAfterRecordingLogUrl   string
+	// NightlyStatus is set for tests that failed in recording when nightly history is available.
+	NightlyStatus string
+	// NightlyDetail is the short parenthetical shown next to NightlyStatus in the table.
+	NightlyDetail string
+	// NightlyTestUrl links the test name to its nightly history page in TeamCity.
+	NightlyTestUrl string
 }
 
 type recordReplay struct {
@@ -100,6 +107,7 @@ type recordReplay struct {
 	BrowseLogBaseUrl              string
 	NotRunBetaTests               []string
 	NotRunGATests                 []string
+	NightlyKnownFailures          int
 }
 
 var testTerraformVCRCmd = &cobra.Command{
@@ -168,7 +176,9 @@ The following environment variables are required:
 			return fmt.Errorf("error creating VCR tester: %w", err)
 		}
 
-		return execTestTerraformVCR(args[0], args[1], args[2], args[3], args[4], baseBranch, gh, rnr, ctlr, vt)
+		gcs := cloudstorage.NewClient()
+
+		return execTestTerraformVCR(args[0], args[1], args[2], args[3], args[4], baseBranch, "/workspace", gh, rnr, ctlr, vt, gcs)
 	},
 }
 
@@ -180,7 +190,7 @@ func listTTVRequiredEnvironmentVariables() string {
 	return result
 }
 
-func execTestTerraformVCR(prNumber, mmCommitSha, buildID, projectID, buildStep, baseBranch string, gh GithubClient, rnr ExecRunner, ctlr *source.Controller, vt *vcr.Tester) error {
+func execTestTerraformVCR(prNumber, mmCommitSha, buildID, projectID, buildStep, baseBranch, workspace string, gh GithubClient, rnr ExecRunner, ctlr *source.Controller, vt *vcr.Tester, gcs CloudstorageClient) error {
 	newBranch := "auto-pr-" + prNumber
 	oldBranch := newBranch + "-old"
 
@@ -251,13 +261,13 @@ func execTestTerraformVCR(prNumber, mmCommitSha, buildID, projectID, buildStep, 
 		return fmt.Errorf("error uploading replaying logs: %w", err)
 	}
 
-	if hasPanics, err := handlePanics(prNumber, buildID, buildStepUrl, mmCommitSha, replayingResult, vcr.Replaying, gh, rnr); err != nil {
+	if hasPanics, err := handlePanics(prNumber, buildID, buildStepUrl, mmCommitSha, workspace, replayingResult, vcr.Replaying, gh, rnr); err != nil {
 		return fmt.Errorf("error handling panics: %w", err)
 	} else if hasPanics {
 		return nil
 	}
 
-	if hasBuildFailures, err := handleBuildFailures(prNumber, buildID, buildStepUrl, mmCommitSha, replayingResult, vcr.Replaying, gh, rnr); err != nil {
+	if hasBuildFailures, err := handleBuildFailures(prNumber, buildID, buildStepUrl, mmCommitSha, workspace, replayingResult, vcr.Replaying, gh, rnr); err != nil {
 		return fmt.Errorf("error handling build failures: %w", err)
 	} else if hasBuildFailures {
 		return nil
@@ -293,7 +303,7 @@ func execTestTerraformVCR(prNumber, mmCommitSha, buildID, projectID, buildStep, 
 			comment = fmt.Sprintf("%s\n\n%s VCR tests complete for %s!", comment, mentionStr, mmCommitSha)
 		}
 	}
-	if err := appendVCRResultToDiffComment(prNumber, comment, gh, rnr); err != nil {
+	if err := appendVCRResultToDiffComment(prNumber, comment, workspace, gh, rnr); err != nil {
 		return fmt.Errorf("error appending comment: %w", err)
 	}
 	if len(replayingResult.FailedTests) > 0 {
@@ -324,13 +334,13 @@ func execTestTerraformVCR(prNumber, mmCommitSha, buildID, projectID, buildStep, 
 			return fmt.Errorf("error uploading recording logs: %w", err)
 		}
 
-		if hasPanics, err := handlePanics(prNumber, buildID, buildStepUrl, mmCommitSha, recordingResult, vcr.Recording, gh, rnr); err != nil {
+		if hasPanics, err := handlePanics(prNumber, buildID, buildStepUrl, mmCommitSha, workspace, recordingResult, vcr.Recording, gh, rnr); err != nil {
 			return fmt.Errorf("error handling panics: %w", err)
 		} else if hasPanics {
 			return nil
 		}
 
-		if hasBuildFailures, err := handleBuildFailures(prNumber, buildID, buildStepUrl, mmCommitSha, recordingResult, vcr.Recording, gh, rnr); err != nil {
+		if hasBuildFailures, err := handleBuildFailures(prNumber, buildID, buildStepUrl, mmCommitSha, workspace, recordingResult, vcr.Recording, gh, rnr); err != nil {
 			return fmt.Errorf("error handling build failures: %w", err)
 		} else if hasBuildFailures {
 			return nil
@@ -375,9 +385,22 @@ func execTestTerraformVCR(prNumber, mmCommitSha, buildID, projectID, buildStep, 
 		}
 		logBaseUrl := fmt.Sprintf("https://storage.cloud.google.com/%s", logBasePath)
 
-		testRows := buildVCRTestRows(replayingResult, recordingResult, replayingAfterRecordingResult, logBaseUrl)
+		// Nightly history is optional context; a failure to load it must not fail the VCR check.
+		nightlyHistory, err := loadNightlyTestHistory(provider.Beta, gcs)
+		if err != nil {
+			fmt.Printf("🟡 Skipping nightly test history comparison: %v\n", err)
+		}
+
+		testRows := buildVCRTestRows(replayingResult, recordingResult, replayingAfterRecordingResult, logBaseUrl, nightlyHistory)
+		nightlyKnownFailures := 0
+		for _, row := range testRows {
+			if row.NightlyStatus == NightlyStatusFailing || row.NightlyStatus == NightlyStatusFlaky {
+				nightlyKnownFailures++
+			}
+		}
 
 		recordReplayData := recordReplay{
+			NightlyKnownFailures:          nightlyKnownFailures,
 			TestRows:                      testRows,
 			RecordingResult:               expandedRecordingResult,
 			ReplayingAfterRecordingResult: expandedReplayingAfterRecordingResult,
@@ -400,7 +423,7 @@ func execTestTerraformVCR(prNumber, mmCommitSha, buildID, projectID, buildStep, 
 		if mentionStr != "" {
 			recordReplayComment = fmt.Sprintf("%s\n\n%s VCR tests complete for %s!", recordReplayComment, mentionStr, mmCommitSha)
 		}
-		if err := appendVCRResultToDiffComment(prNumber, recordReplayComment, gh, rnr); err != nil {
+		if err := appendVCRResultToDiffComment(prNumber, recordReplayComment, workspace, gh, rnr); err != nil {
 			return fmt.Errorf("error appending comment: %w", err)
 		}
 	}
@@ -553,7 +576,7 @@ func runReplaying(runFullVCR bool, version provider.Version, services map[string
 	return result, testDirs, replayingErr
 }
 
-func handlePanics(prNumber, buildID, buildStepUrl, mmCommitSha string, result vcr.Result, mode vcr.Mode, gh GithubClient, rnr ExecRunner) (bool, error) {
+func handlePanics(prNumber, buildID, buildStepUrl, mmCommitSha, workspace string, result vcr.Result, mode vcr.Mode, gh GithubClient, rnr ExecRunner) (bool, error) {
 	if len(result.Panics) > 0 {
 		comment := "> [!CAUTION]\n"
 		comment += "> **Panic occurred during VCR tests**\n>\n"
@@ -575,7 +598,7 @@ func handlePanics(prNumber, buildID, buildStepUrl, mmCommitSha string, result vc
 		}
 		comment = header + comment
 
-		if err := appendVCRResultToDiffComment(prNumber, comment, gh, rnr); err != nil {
+		if err := appendVCRResultToDiffComment(prNumber, comment, workspace, gh, rnr); err != nil {
 			return true, fmt.Errorf("error appending comment: %v", err)
 		}
 		if err := gh.PostBuildStatus(prNumber, "VCR-test", "failure", buildStepUrl, mmCommitSha); err != nil {
@@ -586,7 +609,7 @@ func handlePanics(prNumber, buildID, buildStepUrl, mmCommitSha string, result vc
 	return false, nil
 }
 
-func handleBuildFailures(prNumber, buildID, buildStepUrl, mmCommitSha string, result vcr.Result, mode vcr.Mode, gh GithubClient, rnr ExecRunner) (bool, error) {
+func handleBuildFailures(prNumber, buildID, buildStepUrl, mmCommitSha, workspace string, result vcr.Result, mode vcr.Mode, gh GithubClient, rnr ExecRunner) (bool, error) {
 	if len(result.BuildFailures) > 0 {
 		comment := "> [!CAUTION]\n"
 		comment += "> **Build Failure during VCR tests**\n>\n"
@@ -611,7 +634,7 @@ func handleBuildFailures(prNumber, buildID, buildStepUrl, mmCommitSha string, re
 		}
 		comment = header + comment
 
-		if err := appendVCRResultToDiffComment(prNumber, comment, gh, rnr); err != nil {
+		if err := appendVCRResultToDiffComment(prNumber, comment, workspace, gh, rnr); err != nil {
 			return true, fmt.Errorf("error appending comment: %v", err)
 		}
 		if err := gh.PostBuildStatus(prNumber, "VCR-test", "failure", buildStepUrl, mmCommitSha); err != nil {
@@ -654,11 +677,15 @@ func getMentions(prNumber string, gh GithubClient) string {
 // appendVCRResultToDiffComment appends content to the existing diff report comment
 // identified by the ID in /workspace/diff_comment_id.txt.
 // If the file is missing or the comment cannot be fetched, it falls back to posting a new comment.
-func appendVCRResultToDiffComment(prNumber string, content string, gh GithubClient, rnr ExecRunner) error {
+func appendVCRResultToDiffComment(prNumber string, content string, workspace string, gh GithubClient, rnr ExecRunner) error {
 	var diffComment *github.PullRequestComment
 
+	if workspace == "" {
+		workspace = "/workspace"
+	}
+
 	// Try to find by ID from file
-	if idStr, err := rnr.ReadFile("/workspace/diff_comment_id.txt"); err == nil {
+	if idStr, err := rnr.ReadFile(filepath.Join(workspace, "diff_comment_id.txt")); err == nil {
 		if id, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil {
 			if comment, err := gh.GetPullRequestComment(id); err == nil {
 				diffComment = &comment
@@ -691,6 +718,7 @@ func parseTemplate(filename string, tmplText string) *template.Template {
 		"replace":      strings.ReplaceAll,
 		"symbol":       symbol,
 		"contains":     contains,
+		"findings":     findingsCell,
 	}
 	tmpl, err := template.New(filename).Funcs(funcs).Parse(tmplText)
 	if err != nil {
@@ -747,6 +775,35 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
+// findingsCell collects the extra signals that help decide whether a test result needs addressing,
+// one per line. Only notable signals are shown, so most passing rows render as "-" and new sources
+// can be added later without widening the table.
+func findingsCell(row VCRTestTableRow) string {
+	var findings []string
+	if row.ReplayingAfterRecordingStatus == "Failed" {
+		// Only the label is code-styled; links inside backticks would not render.
+		f := "`❌ Replay rerun failed`"
+		var links []string
+		if row.ReplayingAfterRecordingErrorUrl != "" {
+			links = append(links, fmt.Sprintf("[Error](%s)", row.ReplayingAfterRecordingErrorUrl))
+		}
+		if row.ReplayingAfterRecordingLogUrl != "" {
+			links = append(links, fmt.Sprintf("[Log](%s)", row.ReplayingAfterRecordingLogUrl))
+		}
+		if len(links) > 0 {
+			f += "&nbsp;" + strings.Join(links, "&nbsp;·&nbsp;")
+		}
+		findings = append(findings, f)
+	}
+	if f := nightlyFinding(row); f != "" {
+		findings = append(findings, f)
+	}
+	if len(findings) == 0 {
+		return "-"
+	}
+	return strings.Join(findings, "<br>")
+}
+
 func createTableRow(t string, logBaseUrl string, recordingResult, replayingResult vcr.Result) VCRTestTableRow {
 	row := VCRTestTableRow{
 		DisplayName: strings.ReplaceAll(t, "__", "/"),
@@ -776,7 +833,9 @@ func createTableRow(t string, logBaseUrl string, recordingResult, replayingResul
 	return row
 }
 
-func buildVCRTestRows(replayingResult, recordingResult, replayingAfterRecordingResult vcr.Result, logBaseUrl string) []VCRTestTableRow {
+// buildVCRTestRows builds the recording table rows. If nightlyHistory is non-nil, tests that
+// failed in recording are annotated with their nightly status.
+func buildVCRTestRows(replayingResult, recordingResult, replayingAfterRecordingResult vcr.Result, logBaseUrl string, nightlyHistory *NightlyTestHistoryReport) []VCRTestTableRow {
 	// Expand compound tests to subtests for accurate status matching
 	expandedRecordingResult := subtestResult(recordingResult)
 	expandedReplayingAfterRecordingResult := subtestResult(replayingAfterRecordingResult)
@@ -834,7 +893,16 @@ func buildVCRTestRows(replayingResult, recordingResult, replayingAfterRecordingR
 		testRows = append(testRows, createTableRow(t, logBaseUrl, expandedRecordingResult, expandedReplayingAfterRecordingResult))
 	}
 	for _, t := range failingInRecording {
-		testRows = append(testRows, createTableRow(t, logBaseUrl, expandedRecordingResult, expandedReplayingAfterRecordingResult))
+		row := createTableRow(t, logBaseUrl, expandedRecordingResult, expandedReplayingAfterRecordingResult)
+		if nightlyHistory != nil {
+			h := lookupNightlyHistory(t, nightlyHistory.Tests)
+			row.NightlyStatus = classifyNightlyStatus(h, nightlyHistory.EndDate)
+			row.NightlyDetail = nightlyDetail(h, row.NightlyStatus)
+			if h != nil {
+				row.NightlyTestUrl = nightlyTestUrl(h.TestNameId, provider.Beta)
+			}
+		}
+		testRows = append(testRows, row)
 	}
 	for _, t := range terminated {
 		testRows = append(testRows, createTableRow(t, logBaseUrl, expandedRecordingResult, expandedReplayingAfterRecordingResult))

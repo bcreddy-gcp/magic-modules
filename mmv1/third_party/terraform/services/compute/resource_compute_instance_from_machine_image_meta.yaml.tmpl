@@ -185,6 +185,8 @@ fields:
     field: 'network_interface.network'
   - api_field: 'networkInterfaces.networkAttachment'
     field: 'network_interface.network_attachment'
+  - api_field: 'networkInterfaces.enableVpcScopedDns'
+    field: 'network_interface.enable_vpc_scoped_dns'
   - api_field: 'networkInterfaces.parentNicName'
     field: 'network_interface.parent_nic_name'
   - api_field: 'networkInterfaces.vlan'
@@ -266,6 +268,8 @@ fields:
     field: 'tags_fingerprint'
   - field: 'terraform_labels'
     provider_only: true
+  - api_field: 'workloadIdentityConfig.identity'
+  - api_field: 'workloadIdentityConfig.identityCertificateEnabled'
   - api_field: 'zone'
 {{- if ne $.TargetVersionName "ga" }}
   - api_field: 'eraseWindowsVssSignature'

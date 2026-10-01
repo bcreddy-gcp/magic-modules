@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-provider-google/google/envvar"
 	_ "github.com/hashicorp/terraform-provider-google/google/services/alloydb"
 	"github.com/hashicorp/terraform-provider-google/google/services/backupdr"
+	_ "github.com/hashicorp/terraform-provider-google/google/services/compute"
+	_ "github.com/hashicorp/terraform-provider-google/google/services/resourcemanager"
 	"github.com/hashicorp/terraform-provider-google/google/services/servicenetworking"
 )
 
@@ -783,7 +785,7 @@ data "google_backup_dr_backup" "alloydb_backups" {
 }
 
 resource "google_alloydb_cluster" "default" {
-  cluster_id = "restore-from-backupdr-backup-%{random_suffix}"
+  cluster_id = "tf-test-restore-from-backupdr-backup-%{random_suffix}"
   location   = "%{location}"
 
   network_config {
@@ -884,7 +886,7 @@ data "google_backup_dr_backup" "alloydb_backups" {
 }
 
 resource "google_alloydb_cluster" "default" {
-  cluster_id = "restore-from-backupdr-backup-%{random_suffix}"
+  cluster_id = "tf-test-restore-from-backupdr-backup-%{random_suffix}"
   location   = "%{location}"
 
   network_config {
@@ -988,7 +990,7 @@ data "google_backup_dr_backup_plan_association" "association" {
 }
 
 resource "google_alloydb_cluster" "default_pitr" {
-  cluster_id = "pitr-restore-from-backupdr-backup-%{random_suffix}"
+  cluster_id = "tf-test-pitr-restore-from-backupdr-backup-%{random_suffix}"
   location   = "%{location}"
 
   network_config {

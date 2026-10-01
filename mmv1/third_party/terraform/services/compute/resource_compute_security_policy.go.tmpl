@@ -2,9 +2,11 @@ package compute
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -103,6 +105,7 @@ func ResourceComputeSecurityPolicy() *schema.Resource {
 				Type:     schema.TypeSet,
 				Optional: true,
 				Computed: true, // If no rules are set, a default rule is added
+				Set:      resourceComputeSecurityPolicyRuleHash,
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"action": {
@@ -244,6 +247,12 @@ func ResourceComputeSecurityPolicy() *schema.Resource {
 												"request_uri": resourceComputeSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParamsSchema(
 													`Request URI from the request line to be excluded from inspection during preconfigured WAF evaluation. When specifying this field, the query or fragment part should be excluded.`,
 												),
+
+{{- if ne $.TargetVersionName "ga" }}
+												"request_body": resourceComputeSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParamsSchema(
+													`A list of request body fields to be excluded from inspection during\npreconfigured WAF evaluation.`,
+												),
+{{- end }}
 
 												"request_query_param": resourceComputeSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParamsSchema(
 													`Request query parameter whose value will be excluded from inspection during preconfigured WAF evaluation.  Note that the parameter can be in the query string or in the POST body.`,
@@ -557,6 +566,7 @@ func ResourceComputeSecurityPolicy() *schema.Resource {
 									"enable": {
 										Type: schema.TypeBool,
 										Optional: true,
+										Computed: true,
 										Description: `If set to true, enables CAAP for L7 DDoS detection.`,
 									},
 									"rule_visibility": {
@@ -751,6 +761,81 @@ func resourceComputeSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParams
 		},
 		Description: description,
 	}
+}
+
+// resourceComputeSecurityPolicyRuleHash computes a deterministic hash of all configured rule attributes.
+// It normalizes empty/default values and sorts string collections to prevent permadiffs and unnecessary
+// rule recreation from API return defaults while ensuring any configuration change produces a distinct hash.
+func resourceComputeSecurityPolicyRuleHash(v interface{}) int {
+	norm := normalizeRuleForHash(v)
+	b, err := json.Marshal(norm)
+	if err != nil {
+		return 0
+	}
+	return tpgresource.Hashcode(string(b))
+}
+
+func normalizeRuleForHash(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+	switch val := v.(type) {
+	case *schema.Set:
+		return normalizeRuleForHash(val.List())
+	case []interface{}:
+		var list []interface{}
+		for _, item := range val {
+			norm := normalizeRuleForHash(item)
+			if norm != nil {
+				list = append(list, norm)
+			}
+		}
+		if len(list) == 0 {
+			return nil
+		}
+		if isStringSlice(list) {
+			strs := make([]string, len(list))
+			for i, s := range list {
+				strs[i] = s.(string)
+			}
+			sort.Strings(strs)
+			return strs
+		}
+		return list
+	case map[string]interface{}:
+		m := make(map[string]interface{})
+		for k, item := range val {
+			norm := normalizeRuleForHash(item)
+			if norm != nil {
+				m[k] = norm
+			}
+		}
+		if len(m) == 0 {
+			return nil
+		}
+		return m
+	case string:
+		if val == "" {
+			return nil
+		}
+		return val
+	case bool:
+		if !val {
+			return nil
+		}
+		return val
+	default:
+		return val
+	}
+}
+
+func isStringSlice(list []interface{}) bool {
+	for _, item := range list {
+		if _, ok := item.(string); !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func rulesCustomizeDiff(_ context.Context, diff *schema.ResourceDiff, _ interface{}) error {
@@ -1397,6 +1482,9 @@ func expandSecurityPolicyRulePreconfiguredWafConfigExclusion(raw interface{}) ma
 		"requestHeadersToExclude":     expandSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParams(data["request_header"].([]interface{})),
 		"requestCookiesToExclude":     expandSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParams(data["request_cookie"].([]interface{})),
 		"requestUrisToExclude":        expandSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParams(data["request_uri"].([]interface{})),
+{{- if ne $.TargetVersionName "ga" }}
+		"requestBodiesToExclude":       expandSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParams(data["request_body"].([]interface{})),
+{{- end }}
 		"requestQueryParamsToExclude": expandSecurityPolicyRulePreconfiguredWafConfigExclusionFieldParams(data["request_query_param"].([]interface{})),
 		"targetRuleSet":               data["target_rule_set"].(string),
 		"targetRuleIds":               tpgresource.ConvertStringArr(data["target_rule_ids"].(*schema.Set).List()),
@@ -1574,6 +1662,9 @@ func flattenPreconfiguredWafConfigExclusions(rawExclusions interface{}) []map[st
 			"request_header":      flattenPreconfiguredWafConfigExclusionField(exclusion["requestHeadersToExclude"]),
 			"request_cookie":      flattenPreconfiguredWafConfigExclusionField(exclusion["requestCookiesToExclude"]),
 			"request_uri":         flattenPreconfiguredWafConfigExclusionField(exclusion["requestUrisToExclude"]),
+{{- if ne $.TargetVersionName "ga" }}
+  		"request_body":        flattenPreconfiguredWafConfigExclusionField(exclusion["requestBodiesToExclude"]),
+{{- end }}
 			"request_query_param": flattenPreconfiguredWafConfigExclusionField(exclusion["requestQueryParamsToExclude"]),
 			"target_rule_set":     exclusion["targetRuleSet"],
 			"target_rule_ids":     schema.NewSet(schema.HashString, targetRuleIds),

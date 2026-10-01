@@ -563,10 +563,10 @@ func TestRecordReplay(t *testing.T) {
 				Head:               "auto-pr-123",
 			},
 			wantContains: []string{
-				"| Recording Mode | Replaying Rerun | Test Name |",
-				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/a.log) | ✅ | TestAcc_a |",
-				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/b.log) | ❌&nbsp;[Error](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/build-log/replaying_build_after_recording/b_replaying_test.log)&nbsp;·&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/replaying_after_recording/b.log) | TestAcc_b |",
-				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/c.log) | ❌&nbsp;[Error](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/build-log/replaying_build_after_recording/c_replaying_test.log)&nbsp;·&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/replaying_after_recording/c.log) | TestAcc_c |",
+				"| Recording Mode | Findings | Test Name |",
+				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/a.log) | - | TestAcc_a |",
+				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/b.log) | `❌ Replay rerun failed`&nbsp;[Error](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/build-log/replaying_build_after_recording/b_replaying_test.log)&nbsp;·&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/replaying_after_recording/b.log) | TestAcc_b |",
+				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/c.log) | `❌ Replay rerun failed`&nbsp;[Error](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/build-log/replaying_build_after_recording/c_replaying_test.log)&nbsp;·&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/replaying_after_recording/c.log) | TestAcc_c |",
 				"| ❌&nbsp;[Error](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/build-log/recording_build/d_recording_test.log)&nbsp;·&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/d.log) | - | TestAcc_d |",
 				"| ❌&nbsp;[Error](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/build-log/recording_build/e_recording_test.log)&nbsp;·&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/e.log) | - | TestAcc_e |",
 
@@ -604,10 +604,10 @@ func TestRecordReplay(t *testing.T) {
 				LogBucket:          "ci-vcr-logs",
 			},
 			wantContains: []string{
-				"| Recording Mode | Replaying Rerun | Test Name |",
-				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/a.log) | ✅ | TestAcc_a |",
-				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/b.log) | ✅ | TestAcc_b |",
-				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/c.log) | ✅ | TestAcc_c |",
+				"| Recording Mode | Findings | Test Name |",
+				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/a.log) | - | TestAcc_a |",
+				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/b.log) | - | TestAcc_b |",
+				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/c.log) | - | TestAcc_c |",
 				"🟢 **All tests passed!**",
 				"View the [recording VCR build log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/build-log/recording_test.log) or the [debug logs folder](https://console.cloud.google.com/storage/browser/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording) for detailed results.",
 			},
@@ -629,8 +629,8 @@ func TestRecordReplay(t *testing.T) {
 				manyRows[0].DisplayName,
 			},
 			wantStdoutContains: []string{
-				"| Recording Mode | Replaying Rerun | Test Name |",
-				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/a.log) | ✅ | TestAcc_a |",
+				"| Recording Mode | Findings | Test Name |",
+				"| ✅&nbsp;[Log](https://storage.cloud.google.com/ci-vcr-logs/beta/refs/heads/auto-pr-123/artifacts/build-123/recording/a.log) | - | TestAcc_a |",
 			},
 		},
 	}
@@ -663,8 +663,9 @@ func TestHandleBuildFailures(t *testing.T) {
 		BuildFailures: []string{"package1", "package2"},
 	}
 
-	rnr := &mockRunner{}
-	handled, err := handleBuildFailures("123", "build-456", "http://target", "sha789", result, vcr.Replaying, gh, rnr)
+	sb := newSandbox(t)
+	sb.RequireAllowlist()
+	handled, err := handleBuildFailures("123", "build-456", "http://target", "sha789", sb.Dir, result, vcr.Replaying, gh, sb.Runner)
 
 	assert.NoError(t, err)
 	assert.True(t, handled)
@@ -690,8 +691,9 @@ func TestHandleBuildFailures_Recording(t *testing.T) {
 		BuildFailures: []string{"package1", "package2"},
 	}
 
-	rnr := &mockRunner{}
-	handled, err := handleBuildFailures("123", "build-456", "http://target", "sha789", result, vcr.Recording, gh, rnr)
+	sb := newSandbox(t)
+	sb.RequireAllowlist()
+	handled, err := handleBuildFailures("123", "build-456", "http://target", "sha789", sb.Dir, result, vcr.Recording, gh, sb.Runner)
 
 	assert.NoError(t, err)
 	assert.True(t, handled)
@@ -709,8 +711,9 @@ func TestHandleBuildFailures_NoFailures(t *testing.T) {
 	}
 	result := vcr.Result{}
 
-	rnr := &mockRunner{}
-	handled, err := handleBuildFailures("123", "build-456", "http://target", "sha789", result, vcr.Replaying, gh, rnr)
+	sb := newSandbox(t)
+	sb.RequireAllowlist()
+	handled, err := handleBuildFailures("123", "build-456", "http://target", "sha789", sb.Dir, result, vcr.Replaying, gh, sb.Runner)
 
 	assert.NoError(t, err)
 	assert.False(t, handled)
@@ -736,8 +739,9 @@ func TestAppendVCRResultToDiffComment_NotExists(t *testing.T) {
 		},
 	}
 
-	rnr := &mockRunner{}
-	err := appendVCRResultToDiffComment("123", "VCR Results", gh, rnr)
+	sb := newSandbox(t)
+	sb.RequireAllowlist()
+	err := appendVCRResultToDiffComment("123", "VCR Results", sb.Dir, gh, sb.Runner)
 
 	assert.NoError(t, err)
 	assert.Len(t, gh.calledMethods["PostComment"], 1)
@@ -761,13 +765,12 @@ func TestAppendVCRResultToDiffComment_UseFileID(t *testing.T) {
 			},
 		},
 	}
-	rnr := &mockRunner{
-		fileContents: map[string]string{
-			"/workspace/diff_comment_id.txt": "456",
-		},
-	}
+	sb := newSandbox(t)
+	sb.RequireAllowlist()
 
-	err := appendVCRResultToDiffComment("123", "VCR Results", gh, rnr)
+	sb.Runner.WriteFile("diff_comment_id.txt", "456")
+
+	err := appendVCRResultToDiffComment("123", "VCR Results", sb.Dir, gh, sb.Runner)
 
 	assert.NoError(t, err)
 	assert.Len(t, gh.calledMethods["UpdateComment"], 1)
