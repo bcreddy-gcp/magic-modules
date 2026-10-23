@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -15,8 +16,6 @@ import (
 	apiresource "github.com/GoogleCloudPlatform/magic-modules/mmv1/api/resource"
 	"github.com/GoogleCloudPlatform/magic-modules/mmv1/api/utils"
 	"github.com/GoogleCloudPlatform/magic-modules/mmv1/google"
-	"github.com/golang/glog"
-	"golang.org/x/exp/slices"
 )
 
 type Loader struct {
@@ -460,7 +459,7 @@ func (l *Loader) loadResource(product *api.Product, baseResourcePath string, ove
 
 	for _, e := range resource.Examples {
 		if err := e.LoadHCLText(l.sysfs); err != nil {
-			glog.Exit(err)
+			log.Fatal(err)
 		}
 	}
 
@@ -488,16 +487,22 @@ func (l *Loader) Validate() {
 		log.Fatalln("products have not been loaded into memory")
 	}
 
+	var allErrs []error
 	for _, product := range l.Products {
+		ver := product.VersionObjOrClosest(l.version)
 		for _, resource := range product.Objects {
+			resource.ExcludeIfNotInVersion(ver)
 			es := resource.Validate()
 			if len(es) > 0 {
 				es = utils.TransformErrs(func(e error) error {
 					return fmt.Errorf("%s%s%s: %w", utils.ColorRed, resource.SourceYamlFile, utils.ColorReset, e)
 				}, es)
-				log.Fatalf("%v", errors.Join(es...))
+				allErrs = append(allErrs, es...)
 			}
 		}
+	}
+	if len(allErrs) > 0 {
+		log.Fatalf("%v", errors.Join(allErrs...))
 	}
 }
 

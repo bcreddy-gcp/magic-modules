@@ -492,7 +492,12 @@ service/gce-rollout-plan:
   - google_compute_rollout_plan
 service/gemini:
   resources:
-  - google_gemini_.*
+  - google_gemini_code_repository_index
+  - google_gemini_repository_group.*
+  - google_gemini_.*_setting(_binding)?
+service/geminidataanalytics:
+  resources:
+  - google_gemini_data_analytics_.*
 service/gkebackup:
   resources:
   - google_gke_backup_.*
@@ -693,6 +698,7 @@ service/networkservices-traffic-director:
   - google_network_services_mesh
   - google_network_services_service_binding
   - google_network_services_tcp_route
+  - google_network_services_telemetry_policy
   - google_network_services_tls_route
 service/notebooks:
   resources:
